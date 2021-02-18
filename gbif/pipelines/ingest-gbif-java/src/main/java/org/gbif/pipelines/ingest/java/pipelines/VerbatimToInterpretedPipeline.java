@@ -52,6 +52,7 @@ import org.gbif.pipelines.io.avro.BasicRecord;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.ImageRecord;
 import org.gbif.pipelines.io.avro.LocationRecord;
+import org.gbif.pipelines.io.avro.MeasurementOrFactRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.io.avro.MultimediaRecord;
 import org.gbif.pipelines.io.avro.Record;
@@ -68,6 +69,7 @@ import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.java.DefaultValuesTransform;
 import org.gbif.pipelines.transforms.java.OccurrenceExtensionTransform;
@@ -256,6 +258,9 @@ public class VerbatimToInterpretedPipeline {
             .counterFn(incMetricFn)
             .init();
 
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create().counterFn(incMetricFn);
+
     // Extra
     OccurrenceExtensionTransform occExtensionTransform =
         OccurrenceExtensionTransform.create().counterFn(incMetricFn);
@@ -286,6 +291,8 @@ public class VerbatimToInterpretedPipeline {
             createAvroWriter(options, imageTransform, id);
         SyncDataFileWriter<AudubonRecord> audubonWriter =
             createAvroWriter(options, audubonTransform, id);
+        SyncDataFileWriter<MeasurementOrFactRecord> measurementOrFactWriter =
+            createAvroWriter(options, measurementOrFactTransform, id);
         SyncDataFileWriter<TaxonRecord> taxonWriter =
             createAvroWriter(options, taxonomyTransform, id);
         SyncDataFileWriter<GrscicollRecord> grscicollWriter =
@@ -331,6 +338,9 @@ public class VerbatimToInterpretedPipeline {
               multimediaTransform.processElement(er).ifPresent(multimediaWriter::append);
               imageTransform.processElement(er).ifPresent(imageWriter::append);
               audubonTransform.processElement(er).ifPresent(audubonWriter::append);
+              measurementOrFactTransform
+                  .processElement(er)
+                  .ifPresent(measurementOrFactWriter::append);
               taxonomyTransform.processElement(er).ifPresent(taxonWriter::append);
               grscicollTransform.processElement(er, mdr).ifPresent(grscicollWriter::append);
               locationTransform.processElement(er, mdr).ifPresent(locationWriter::append);

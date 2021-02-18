@@ -42,6 +42,7 @@ import org.gbif.pipelines.transforms.converters.OccurrenceExtensionTransform;
 import org.gbif.pipelines.transforms.core.*;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.DefaultValuesTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
@@ -178,6 +179,9 @@ public class VerbatimToInterpretedPipeline {
     ImageTransform imageTransform =
         ImageTransform.builder().orderings(dateComponentOrdering).create();
 
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
+
     // Extra
     UniqueGbifIdTransform gbifIdTransform =
         UniqueGbifIdTransform.create(options.isUseExtendedRecordId());
@@ -276,6 +280,12 @@ public class VerbatimToInterpretedPipeline {
         .apply("Check audubon transform condition", audubonTransform.check(types))
         .apply("Interpret audubon", audubonTransform.interpret())
         .apply("Write audubon to avro", audubonTransform.write(pathFn));
+
+    filteredUniqueRecords
+        .apply(
+            "Check measurementOrFact transform condition", measurementOrFactTransform.check(types))
+        .apply("Interpret measurementOrFact", measurementOrFactTransform.interpret())
+        .apply("Write measurementOrFact to avro", measurementOrFactTransform.write(pathFn));
 
     filteredUniqueRecords
         .apply("Check taxonomy transform condition", taxonomyTransform.check(types))

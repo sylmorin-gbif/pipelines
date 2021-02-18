@@ -13,6 +13,7 @@ import org.gbif.pipelines.io.avro.BasicRecord;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.ImageRecord;
 import org.gbif.pipelines.io.avro.LocationRecord;
+import org.gbif.pipelines.io.avro.MeasurementOrFactRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.io.avro.MultimediaRecord;
 import org.gbif.pipelines.io.avro.OccurrenceHdfsRecord;
@@ -34,6 +35,7 @@ public class OccurrenceHdfsRecordConverter {
   @NonNull private final Map<String, MultimediaRecord> multimediaMap;
   @NonNull private final Map<String, ImageRecord> imageMap;
   @NonNull private final Map<String, AudubonRecord> audubonMap;
+  @NonNull private final Map<String, MeasurementOrFactRecord> measurementOrFactMap;
 
   /** Join all records, convert into OccurrenceHdfsRecord and save as an avro file */
   public Function<BasicRecord, OccurrenceHdfsRecord> getFn() {
@@ -51,12 +53,15 @@ public class OccurrenceHdfsRecordConverter {
           multimediaMap.getOrDefault(k, MultimediaRecord.newBuilder().setId(k).build());
       ImageRecord ir = imageMap.getOrDefault(k, ImageRecord.newBuilder().setId(k).build());
       AudubonRecord ar = audubonMap.getOrDefault(k, AudubonRecord.newBuilder().setId(k).build());
+      MeasurementOrFactRecord mfr =
+          measurementOrFactMap.getOrDefault(
+              k, MeasurementOrFactRecord.newBuilder().setId(k).build());
 
       metrics.incMetric(AVRO_TO_HDFS_COUNT);
 
       MultimediaRecord mmr = MultimediaConverter.merge(mr, ir, ar);
       return org.gbif.pipelines.core.converters.OccurrenceHdfsRecordConverter
-          .toOccurrenceHdfsRecord(br, metadata, tr, lr, txr, gr, mmr, er);
+          .toOccurrenceHdfsRecord(br, metadata, tr, lr, txr, gr, mmr, mfr, er);
     };
   }
 }

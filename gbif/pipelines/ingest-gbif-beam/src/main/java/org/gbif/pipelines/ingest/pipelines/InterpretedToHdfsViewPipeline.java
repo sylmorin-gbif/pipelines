@@ -35,6 +35,7 @@ import org.gbif.pipelines.transforms.converters.OccurrenceHdfsRecordConverterTra
 import org.gbif.pipelines.transforms.core.*;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
 import org.slf4j.MDC;
@@ -122,6 +123,8 @@ public class InterpretedToHdfsViewPipeline {
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
     AudubonTransform audubonTransform = AudubonTransform.builder().create();
     ImageTransform imageTransform = ImageTransform.builder().create();
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
 
     log.info("Adding step 3: Creating beam pipeline");
     PCollectionView<MetadataRecord> metadataView =
@@ -164,6 +167,10 @@ public class InterpretedToHdfsViewPipeline {
         p.apply("Read Audubon", audubonTransform.read(interpretPathFn))
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
+    PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
+        p.apply("Read MeasurementOrFact", measurementOrFactTransform.read(interpretPathFn))
+            .apply("Map MeasurementOrFact to KV", measurementOrFactTransform.toKv());
+
     log.info("Adding step 3: Converting into a OccurrenceHdfsRecord object");
     SingleOutput<KV<String, CoGbkResult>, OccurrenceHdfsRecord> toHdfsRecordDoFn =
         OccurrenceHdfsRecordConverterTransform.builder()
@@ -176,6 +183,7 @@ public class InterpretedToHdfsViewPipeline {
             .multimediaRecordTag(multimediaTransform.getTag())
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
+            .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .metadataView(metadataView)
             .build()
             .converter();
@@ -191,6 +199,7 @@ public class InterpretedToHdfsViewPipeline {
         .and(multimediaTransform.getTag(), multimediaCollection)
         .and(imageTransform.getTag(), imageCollection)
         .and(audubonTransform.getTag(), audubonCollection)
+        .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
         // Raw
         .and(verbatimTransform.getTag(), verbatimCollection)
         // Apply

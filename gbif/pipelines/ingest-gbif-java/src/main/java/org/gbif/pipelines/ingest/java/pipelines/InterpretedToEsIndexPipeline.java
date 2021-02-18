@@ -26,6 +26,7 @@ import org.gbif.pipelines.io.avro.BasicRecord;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.ImageRecord;
 import org.gbif.pipelines.io.avro.LocationRecord;
+import org.gbif.pipelines.io.avro.MeasurementOrFactRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.io.avro.MultimediaRecord;
 import org.gbif.pipelines.io.avro.TaxonRecord;
@@ -39,6 +40,7 @@ import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
 import org.slf4j.MDC;
@@ -154,6 +156,9 @@ public class InterpretedToEsIndexPipeline {
     CompletableFuture<Map<String, AudubonRecord>> audubonMapFeature =
         readAvroAsFuture(options, executor, AudubonTransform.builder().create());
 
+    CompletableFuture<Map<String, MeasurementOrFactRecord>> measurementOrFactMapFeature =
+        readAvroAsFuture(options, executor, MeasurementOrFactTransform.builder().create());
+
     Function<BasicRecord, IndexRequest> indexRequestFn =
         IndexRequestConverter.builder()
             .metrics(metrics)
@@ -168,6 +173,7 @@ public class InterpretedToEsIndexPipeline {
             .multimediaMap(multimediaMapFeature.get())
             .imageMap(imageMapFeature.get())
             .audubonMap(audubonMapFeature.get())
+            .measurementOrFactMap(measurementOrFactMapFeature.get())
             .build()
             .getFn();
 

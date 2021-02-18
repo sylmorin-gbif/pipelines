@@ -42,6 +42,7 @@ import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
 import org.slf4j.MDC;
@@ -152,6 +153,9 @@ public class InterpretedToHdfsViewPipeline {
     CompletableFuture<Map<String, AudubonRecord>> audubonMapFeature =
         readAvroAsFuture(options, executor, AudubonTransform.builder().create());
 
+    CompletableFuture<Map<String, MeasurementOrFactRecord>> measurementOrFactMapFeature =
+        readAvroAsFuture(options, executor, MeasurementOrFactTransform.builder().create());
+
     Function<BasicRecord, OccurrenceHdfsRecord> occurrenceHdfsRecordFn =
         OccurrenceHdfsRecordConverter.builder()
             .metrics(metrics)
@@ -164,6 +168,7 @@ public class InterpretedToHdfsViewPipeline {
             .multimediaMap(multimediaMapFeature.get())
             .imageMap(imageMapFeature.get())
             .audubonMap(audubonMapFeature.get())
+            .measurementOrFactMap(measurementOrFactMapFeature.get())
             .build()
             .getFn();
 

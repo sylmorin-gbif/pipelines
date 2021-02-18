@@ -89,6 +89,7 @@ public class GbifJsonTransform implements Serializable {
   @NonNull private final TupleTag<MultimediaRecord> multimediaRecordTag;
   @NonNull private final TupleTag<ImageRecord> imageRecordTag;
   @NonNull private final TupleTag<AudubonRecord> audubonRecordTag;
+  @NonNull private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
 
   @NonNull private final PCollectionView<MetadataRecord> metadataView;
 
@@ -124,9 +125,13 @@ public class GbifJsonTransform implements Serializable {
             ImageRecord ir = v.getOnly(imageRecordTag, ImageRecord.newBuilder().setId(k).build());
             AudubonRecord ar =
                 v.getOnly(audubonRecordTag, AudubonRecord.newBuilder().setId(k).build());
+            MeasurementOrFactRecord mfr =
+                v.getOnly(
+                    measurementOrFactRecordTag,
+                    MeasurementOrFactRecord.newBuilder().setId(k).build());
 
             MultimediaRecord mmr = MultimediaConverter.merge(mr, ir, ar);
-            String json = GbifJsonConverter.toStringJson(mdr, br, tr, lr, txr, gr, mmr, er);
+            String json = GbifJsonConverter.toStringJson(mdr, br, tr, lr, txr, gr, mmr, mfr, er);
 
             c.output(json);
 

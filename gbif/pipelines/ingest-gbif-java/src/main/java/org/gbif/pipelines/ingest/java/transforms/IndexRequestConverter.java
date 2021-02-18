@@ -18,6 +18,7 @@ import org.gbif.pipelines.io.avro.BasicRecord;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.ImageRecord;
 import org.gbif.pipelines.io.avro.LocationRecord;
+import org.gbif.pipelines.io.avro.MeasurementOrFactRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.io.avro.MultimediaRecord;
 import org.gbif.pipelines.io.avro.TaxonRecord;
@@ -41,6 +42,7 @@ public class IndexRequestConverter {
   @NonNull private final Map<String, MultimediaRecord> multimediaMap;
   @NonNull private final Map<String, ImageRecord> imageMap;
   @NonNull private final Map<String, AudubonRecord> audubonMap;
+  @NonNull private final Map<String, MeasurementOrFactRecord> measurementOrFactMap;
 
   /** Join all records, convert into string json and IndexRequest for ES */
   public Function<BasicRecord, IndexRequest> getFn() {
@@ -58,9 +60,12 @@ public class IndexRequestConverter {
           multimediaMap.getOrDefault(k, MultimediaRecord.newBuilder().setId(k).build());
       ImageRecord ir = imageMap.getOrDefault(k, ImageRecord.newBuilder().setId(k).build());
       AudubonRecord ar = audubonMap.getOrDefault(k, AudubonRecord.newBuilder().setId(k).build());
+      MeasurementOrFactRecord mfr =
+          measurementOrFactMap.getOrDefault(
+              k, MeasurementOrFactRecord.newBuilder().setId(k).build());
 
       MultimediaRecord mmr = MultimediaConverter.merge(mr, ir, ar);
-      ObjectNode json = GbifJsonConverter.toJson(metadata, br, tr, lr, txr, gr, mmr, er);
+      ObjectNode json = GbifJsonConverter.toJson(metadata, br, tr, lr, txr, gr, mmr, mfr, er);
 
       metrics.incMetric(AVRO_TO_JSON_COUNT);
 

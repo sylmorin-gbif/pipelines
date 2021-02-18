@@ -28,6 +28,7 @@ import org.gbif.pipelines.transforms.converters.GbifJsonTransform;
 import org.gbif.pipelines.transforms.core.*;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
 import org.slf4j.MDC;
@@ -111,6 +112,8 @@ public class InterpretedToEsIndexPipeline {
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
     AudubonTransform audubonTransform = AudubonTransform.builder().create();
     ImageTransform imageTransform = ImageTransform.builder().create();
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
 
     log.info("Adding step 3: Creating beam pipeline");
     PCollectionView<MetadataRecord> metadataView =
@@ -153,6 +156,10 @@ public class InterpretedToEsIndexPipeline {
         p.apply("Read Audubon", audubonTransform.read(pathFn))
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
+    PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
+        p.apply("Read MeasurementOrFact", measurementOrFactTransform.read(pathFn))
+            .apply("Map MeasurementOrFact to KV", measurementOrFactTransform.toKv());
+
     log.info("Adding step 3: Converting into a json object");
     SingleOutput<KV<String, CoGbkResult>, String> gbifJsonDoFn =
         GbifJsonTransform.builder()
@@ -165,6 +172,7 @@ public class InterpretedToEsIndexPipeline {
             .multimediaRecordTag(multimediaTransform.getTag())
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
+            .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .metadataView(metadataView)
             .build()
             .converter();
@@ -181,6 +189,7 @@ public class InterpretedToEsIndexPipeline {
             .and(multimediaTransform.getTag(), multimediaCollection)
             .and(imageTransform.getTag(), imageCollection)
             .and(audubonTransform.getTag(), audubonCollection)
+            .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
             // Raw
             .and(verbatimTransform.getTag(), verbatimCollection)
             // Apply
