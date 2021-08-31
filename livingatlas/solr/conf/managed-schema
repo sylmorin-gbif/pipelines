@@ -123,17 +123,20 @@
     <analyzer type="index">
       <tokenizer class="solr.WhitespaceTokenizerFactory"/>
       <filter class="solr.StopFilterFactory" words="stopwords.txt" ignoreCase="true"/>
-      <filter class="solr.WordDelimiterFilterFactory" catenateNumbers="1" generateNumberParts="1" splitOnCaseChange="0" generateWordParts="1" catenateAll="0" catenateWords="1"/>
+      <filter class="solr.WordDelimiterGraphFilterFactory" generateWordParts="1" generateNumberParts="1"
+        splitOnCaseChange="0" splitOnNumerics="0" catenateAll="1" catenateWords="1"
+        preserveOriginal="1" stemEnglishPossessive="0"/>
+      <filter class="solr.FlattenGraphFilterFactory"/>
       <filter class="solr.LowerCaseFilterFactory"/>
-      <filter class="solr.PorterStemFilterFactory"/>
     </analyzer>
     <analyzer type="query">
       <tokenizer class="solr.WhitespaceTokenizerFactory"/>
       <filter class="solr.SynonymFilterFactory" expand="true" ignoreCase="true" synonyms="synonyms.txt"/>
       <filter class="solr.StopFilterFactory" words="stopwords.txt" ignoreCase="true"/>
-      <filter class="solr.WordDelimiterFilterFactory" catenateNumbers="0" generateNumberParts="1" splitOnCaseChange="0" generateWordParts="1" catenateAll="0" catenateWords="0"/>
+      <filter class="solr.WordDelimiterGraphFilterFactory" generateWordParts="1" generateNumberParts="1"
+              splitOnCaseChange="0" splitOnNumerics="0" catenateAll="1" catenateWords="1"
+              preserveOriginal="1" stemEnglishPossessive="0"/>
       <filter class="solr.LowerCaseFilterFactory"/>
-      <filter class="solr.PorterStemFilterFactory"/>
     </analyzer>
   </fieldType>
   <fieldType name="textsort" class="solr.SortableTextField" positionIncrementGap="100">

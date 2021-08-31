@@ -12,6 +12,7 @@ import java.io.Serializable;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.NonNull;
@@ -1006,7 +1007,29 @@ public class IndexRecordTransform implements Serializable, IndexFields {
 
     // dates
     for (Map.Entry<String, Long> s : indexRecord.getDates().entrySet()) {
-      doc.addField(s.getKey(), new Date(s.getValue()));
+      // Dates are sent from Spark to SOLR without timezone information.
+      // SOLR records the date in the local timezone.
+      // SOLR queries are performed with timezone GMT (+0) appended by biocache-service and various
+      // ALA clients.
+      //
+      // The issue:
+      // Spark -> SOLR
+      // date -> date (+localTimeZone) == (date -localTimeZoneOffset) (+GMT)
+      //
+      // The workaround:
+      // Spark -> SOLR
+      // date +localTimeZoneOffset -> date (+GMT)
+      //
+      int timeZoneOffset = TimeZone.getDefault().getRawOffset();
+
+      // This workaround does not apply to lastLoadedDate, firstLoadedDate, lastProcessedDate
+      if (IndexFields.LAST_LOAD_DATE.equals(s.getKey())
+          || IndexFields.LAST_PROCESSED_DATE.equals(s.getKey())
+          || IndexFields.FIRST_LOADED_DATE.equals(s.getKey())) {
+        timeZoneOffset = 0;
+      }
+
+      doc.addField(s.getKey(), new Date(s.getValue() + timeZoneOffset));
     }
 
     // booleans
