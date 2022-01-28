@@ -39,18 +39,18 @@
     </site>
     <repository>
       <id>gbif-release</id>
-      <url>http://repository.gbif.org/content/repositories/releases</url>
+      <url>https://repository.gbif.org/content/repositories/releases</url>
     </repository>
     <snapshotRepository>
       <id>gbif-deploy</id>
-      <url>http://repository.gbif.org/content/repositories/snapshots</url>
+      <url>https://repository.gbif.org/content/repositories/snapshots</url>
     </snapshotRepository>
   </distributionManagement>
 
   <repositories>
     <repository>
       <id>gbif-all</id>
-      <url>http://repository.gbif.org/content/groups/gbif</url>
+      <url>https://repository.gbif.org/content/groups/gbif</url>
     </repository>
     <repository>
       <id>ALA</id>
@@ -85,7 +85,7 @@
     <!-- GBIF libraries -->
     <gbif-parsers.version>0.57-SNAPSHOT</gbif-parsers.version>
     <dwca-io.version>2.11</dwca-io.version>
-    <gbif-api.version>0.160-SNAPSHOT</gbif-api.version>
+    <gbif-api.version>0.161-SNAPSHOT</gbif-api.version>
     <gbif-common.version>0.53-SNAPSHOT</gbif-common.version>
     <dwc-api.version>1.35-SNAPSHOT</dwc-api.version>
     <kvs.version>1.22-SNAPSHOT</kvs.version>
@@ -93,7 +93,7 @@
     <gbif-wrangler.version>0.3</gbif-wrangler.version>
     <gbif-occurrence.version>0.173-SNAPSHOT</gbif-occurrence.version>
     <vocabulary-lookup.version>0.47-SNAPSHOT</vocabulary-lookup.version>
-    <registry.version>3.73-SNAPSHOT</registry.version>
+    <registry.version>3.74-SNAPSHOT</registry.version>
     <gbif-common-ws.version>1.18</gbif-common-ws.version>
     <gbif-postal-service.version>1.2-SNAPSHOT</gbif-postal-service.version>
 
