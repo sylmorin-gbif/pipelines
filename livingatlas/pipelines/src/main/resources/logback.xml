@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- For assistance related to logback-translator or configuration  -->
+<!-- files in general, please contact the logback user mailing list -->
+<!-- at http://www.qos.ch/mailman/listinfo/logback-user             -->
+<!--                                                                -->
+<!-- For professional support please see                            -->
+<!--    http://www.qos.ch/shop/products/professionalSupport         -->
+<!--                                                                -->
+<configuration>
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%d{yy/MM/dd HH:mm:ss} [%X{step}] [%X{datasetId}] %p %c{1}: %m%n</pattern>
+        </encoder>
+    </appender>
+    <logger name="org.apache.beam" level="ERROR"/>
+    <logger name="org.apache.beam.runners.spark.translation" level="ERROR"/>
+    <logger name="org.gbif.vocabulary.lookup" level="ERROR"/>
+    <logger name="org.apache.hadoop.hive.metastore.RetryingHMSHandler" level="FATAL"/>
+    <logger name="org.apache.spark" level="ERROR"/>
+    <logger name="org.gbif.common.parsers" level="ERROR"/>
+    <logger name="org.gbif.geocode.api.cache" level="ERROR"/>
+    <logger name="ServletContextHandler" level="ERROR"/>
+    <logger name="org.spark-project.jetty" level="WARN"/>
+    <logger name="org.spark_project.jetty.servlet.ServletContextHandler" level="ERROR"/>
+    <logger name="org.apache.http.wire" level="ERROR"/>
+    <logger name="org.gbif.geocode.api.cache.GeocodeBitmapCache" level="ERROR"/>
+    <logger name="org.gbif.dwc.terms.TermFactory" level="ERROR"/>
+    <logger name="org.gbif.pipelines.core.parsers.location.cache.GeocodeBitmapCache" level="ERROR"/>
+    <logger name="org.apache.http" level="ERROR"/>
+    <logger name="org.apache.parquet" level="ERROR"/>
+    <logger name="parquet" level="ERROR"/>
+    <logger name="org.apache.spark.repl.SparkIMain$exprTyper" level="ERROR"/>
+    <logger name="org.eclipse.jetty.server.handler.ContextHandler" level="ERROR"/>
+    <logger name="org.eclipse.jetty" level="ERROR"/>
+    <logger name="org.apache.spark.repl.SparkILoop$SparkILoopInterpreter" level="ERROR"/>
+    <logger name="org.apache.hadoop.hive.ql.exec.FunctionRegistry" level="ERROR"/>
+    <logger name="au.org.ala" level="INFO"/>
+    <root level="INFO">
+        <appender-ref ref="console"/>
+    </root>
+</configuration>
