@@ -2,8 +2,6 @@ package org.gbif.pipelines.transforms.core;
 
 import static org.gbif.pipelines.common.PipelinesVariables.Metrics.BASIC_RECORDS_COUNT;
 import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.Interpretation.RecordType.BASIC;
-import static org.gbif.pipelines.core.interpreters.core.BasicInterpreter.GBIF_ID_INVALID;
-import static org.gbif.pipelines.core.interpreters.core.BasicInterpreter.interpretCopyGbifId;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -22,6 +20,7 @@ import org.gbif.pipelines.core.interpreters.core.BasicInterpreter;
 import org.gbif.pipelines.core.interpreters.core.CoreInterpreter;
 import org.gbif.pipelines.core.interpreters.core.DynamicPropertiesInterpreter;
 import org.gbif.pipelines.core.interpreters.core.VocabularyInterpreter;
+import org.gbif.pipelines.core.interpreters.specific.GbifIdInterpreter;
 import org.gbif.pipelines.core.parsers.clustering.ClusteringService;
 import org.gbif.pipelines.core.parsers.vocabulary.VocabularyService;
 import org.gbif.pipelines.io.avro.BasicRecord;
@@ -89,7 +88,9 @@ public class BasicTransform extends Transform<ExtendedRecord, BasicRecord> {
         .via(
             (BasicRecord br) -> {
               String key =
-                  Optional.ofNullable(br.getGbifId()).map(Object::toString).orElse(GBIF_ID_INVALID);
+                  Optional.ofNullable(br.getGbifId())
+                      .map(Object::toString)
+                      .orElse(GbifIdInterpreter.GBIF_ID_INVALID);
               return KV.of(key, br);
             });
   }
@@ -148,7 +149,7 @@ public class BasicTransform extends Transform<ExtendedRecord, BasicRecord> {
             .build();
 
     if (useExtendedRecordId && source.getCoreTerms().isEmpty()) {
-      interpretCopyGbifId().accept(source, br);
+      GbifIdInterpreter.interpretCopyGbifId().accept(source, br);
     }
 
     Interpretation<ExtendedRecord>.Handler<BasicRecord> handler =
@@ -156,7 +157,7 @@ public class BasicTransform extends Transform<ExtendedRecord, BasicRecord> {
             .to(br)
             .when(er -> !er.getCoreTerms().isEmpty())
             .via(
-                BasicInterpreter.interpretGbifId(
+                GbifIdInterpreter.interpretGbifId(
                     keygenService,
                     isTripletValid,
                     isOccurrenceIdValid,
