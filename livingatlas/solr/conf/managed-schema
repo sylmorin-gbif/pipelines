@@ -502,6 +502,7 @@
   <field name="matched_name"           type="string"  multiValued="true" indexed="true" stored="false" />
   <field name="text_recordedBy"        type="textgen" multiValued="true" indexed="true" stored="false" />
   <field name="text_identifiedBy"      type="textgen" multiValued="true" indexed="true" stored="false" />
+  <field name="text_datasetName"       type="textgen" multiValued="true" indexed="true" stored="false" />
 
   <!-- occurrenceDetails needs to be remapped on export -->
   <!-- see https://github.com/AtlasOfLivingAustralia/la-pipelines/issues/236 -->
@@ -705,6 +706,7 @@
   <copyField source="identifiedBy" dest="text_identifiedBy"/>
   <copyField source="recordedBy" dest="text_recordedBy"/>
   <copyField source="raw_recordedBy" dest="text_recordedBy"/>
+  <copyField source="datasetName" dest="text_datasetName"/>
   <copyField source="scientificName" dest="matched_name"/>
   <copyField source="scientificName" dest="text"/>
   <copyField source="species" dest="text"/>
@@ -713,6 +715,7 @@
   <copyField source="stateConservation" dest="text"/>
   <copyField source="stateProvince" dest="text"/>
   <copyField source="taxonRemarks" dest="text"/>
+  <copyField source="taxonConceptID" dest="text"/>
   <copyField source="typeStatus" dest="text"/>
   <copyField source="vernacularName" dest="matched_name"/>
   <copyField source="vernacularName" dest="text"/>
