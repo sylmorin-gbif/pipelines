@@ -167,6 +167,7 @@ public class IndexRecordTransform implements Serializable, IndexFields {
     // multi valued fields
     skipKeys.add("identifiedByIds");
     skipKeys.add("recordedByIds");
+    skipKeys.add(DwcTerm.typeStatus.simpleName());
     skipKeys.add(DwcTerm.recordedBy.simpleName());
     skipKeys.add(DwcTerm.identifiedBy.simpleName());
     skipKeys.add(DwcTerm.preparations.simpleName());
@@ -231,6 +232,7 @@ public class IndexRecordTransform implements Serializable, IndexFields {
     if (br != null) {
       addTermWithAgentsSafely(
           indexRecord, DwcTerm.recordedByID.simpleName(), br.getRecordedByIds());
+      addMultiValueTermSafely(indexRecord, DwcTerm.typeStatus.simpleName(), br.getRecordedBy());
       addMultiValueTermSafely(indexRecord, DwcTerm.recordedBy.simpleName(), br.getRecordedBy());
       addMultiValueTermSafely(indexRecord, DwcTerm.identifiedBy.simpleName(), br.getIdentifiedBy());
       addMultiValueTermSafely(indexRecord, DwcTerm.preparations.simpleName(), br.getPreparations());
