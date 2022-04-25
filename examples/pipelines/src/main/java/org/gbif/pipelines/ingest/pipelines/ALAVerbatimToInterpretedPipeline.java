@@ -6,7 +6,7 @@ import au.org.ala.kvs.cache.GeocodeKvStoreFactory;
 import au.org.ala.pipelines.transforms.ALATemporalTransform;
 import au.org.ala.pipelines.transforms.LocationTransform;
 import au.org.ala.pipelines.transforms.MetadataTransform;
-import au.org.ala.utils.CombinedYamlConfiguration;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import au.org.ala.utils.CombinedYamlConfiguration;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +38,6 @@ import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
-import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.specific.IdentifierTransform;
 import org.slf4j.MDC;
@@ -71,8 +72,7 @@ public class ALAVerbatimToInterpretedPipeline {
 
   public static void main(String[] args) throws IOException {
     String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "interpret");
-    InterpretationPipelineOptions options =
-        PipelinesOptionsFactory.createInterpretation(combinedArgs);
+    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(combinedArgs);
     run(options);
   }
 
@@ -155,9 +155,6 @@ public class ALAVerbatimToInterpretedPipeline {
     ImageTransform imageTransform =
         ImageTransform.builder().orderings(dateComponentOrdering).create();
 
-    MeasurementOrFactTransform measurementOrFactTransform =
-        MeasurementOrFactTransform.builder().create();
-
     log.info("Creating beam pipeline");
     // Metadata TODO START: Will ALA use it?
     PCollection<MetadataRecord> metadataRecord =
@@ -207,10 +204,6 @@ public class ALAVerbatimToInterpretedPipeline {
     uniqueRawRecords
         .apply("Interpret location", locationTransform.interpret())
         .apply("Write location to avro", locationTransform.write(pathFn));
-
-    uniqueRawRecords
-        .apply("Interpret measurementOrFact", measurementOrFactTransform.interpret())
-        .apply("Write measurementOrFact to avro", measurementOrFactTransform.write(pathFn));
 
     // Wite filtered verbatim avro files
     uniqueRawRecords.apply("Write verbatim to avro", verbatimTransform.write(pathFn));

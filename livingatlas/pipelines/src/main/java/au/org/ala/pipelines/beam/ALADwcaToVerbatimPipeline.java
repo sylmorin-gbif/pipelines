@@ -2,7 +2,6 @@ package au.org.ala.pipelines.beam;
 
 import au.org.ala.pipelines.options.DwcaToVerbatimPipelineOptions;
 import au.org.ala.pipelines.util.VersionInfo;
-import au.org.ala.utils.ALAFsUtils;
 import au.org.ala.utils.CombinedYamlConfiguration;
 import au.org.ala.utils.ValidationUtils;
 import java.io.File;
@@ -11,12 +10,10 @@ import java.nio.file.Paths;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.codehaus.plexus.util.FileUtils;
 import org.gbif.api.model.pipelines.StepType;
-import org.gbif.pipelines.common.PipelinesException;
-import org.gbif.pipelines.common.PipelinesVariables;
 import org.gbif.pipelines.common.beam.DwcaIO;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
@@ -36,32 +33,7 @@ public class ALADwcaToVerbatimPipeline {
         PipelinesOptionsFactory.create(DwcaToVerbatimPipelineOptions.class, combinedArgs);
     options.setMetaFileName(ValidationUtils.VERBATIM_METRICS);
     PipelinesOptionsFactory.registerHdfs(options);
-    runWithLocking(options);
-  }
-
-  /**
-   * Run a load for the supplied dataset, creating a lock to prevent other load process loading the
-   * same archive.
-   */
-  private static void runWithLocking(DwcaToVerbatimPipelineOptions options) throws IOException {
-    // check for a lock file - if there isn't one, create one.
-    boolean okToProceed = ALAFsUtils.checkAndCreateLockFile(options);
-
-    if (okToProceed) {
-      MDC.put("datasetId", options.getDatasetId());
-      MDC.put("attempt", options.getAttempt().toString());
-      MDC.put("step", StepType.DWCA_TO_VERBATIM.name());
-      run(options);
-
-      if (options.isDeleteLockFileOnExit()) {
-        ALAFsUtils.deleteLockFile(options);
-      }
-
-    } else {
-      log.info(
-          "Dataset {} is locked. Will not attempt to loaded. Remove lockdir to proceed,",
-          options.getDatasetId());
-    }
+    run(options);
   }
 
   public static void run(DwcaToVerbatimPipelineOptions options) throws IOException {
@@ -86,7 +58,7 @@ public class ALADwcaToVerbatimPipeline {
       Path inputPathHdfs = new Path(inputPath);
 
       if (!fs.exists(inputPathHdfs)) {
-        throw new PipelinesException("Input file not available: " + inputPath);
+        throw new RuntimeException("Input file not available: " + inputPath);
       }
 
       String tmpInputDir = new File(options.getTempLocation()).getParent();
@@ -105,13 +77,19 @@ public class ALADwcaToVerbatimPipeline {
     }
 
     String targetPath =
-        PathBuilder.buildDatasetAttemptPath(
-            options, PipelinesVariables.Pipeline.Conversion.FILE_NAME, false);
+        String.join(
+            "/",
+            options.getTargetPath(),
+            options.getDatasetId(),
+            options.getAttempt().toString(),
+            "verbatim");
+
     String tmpPath = PathBuilder.getTempDir(options);
 
     log.info("Input path: {}", inputPath);
     boolean isDir = Paths.get(inputPath).toFile().isDirectory();
 
+    log.info("Input path is isDir {}", isDir);
     DwcaIO.Read reader =
         isDir
             ? DwcaIO.Read.fromLocation(inputPath)

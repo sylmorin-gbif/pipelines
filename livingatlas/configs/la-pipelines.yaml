@@ -79,6 +79,8 @@ geocodeConfig:
     path: /data/pipelines-shp/gadm0
     field: FEATURE
 
+
+
 gbifConfig:
   extensionsAllowedForVerbatimSet:
     - http://rs.tdwg.org/ac/terms/Multimedia
