@@ -79,6 +79,8 @@ geocodeConfig:
     path: /data/pipelines-shp/gadm0
     field: FEATURE
 
+
+
 gbifConfig:
   vocabularyConfig:
     vocabulariesPath: /data/pipelines-vocabularies/
@@ -87,6 +89,8 @@ gbifConfig:
       http://rs.tdwg.org/dwc/terms/lifeStage: LifeStage
       http://rs.tdwg.org/dwc/terms/establishmentMeans: EstablishmentMeans
       http://rs.tdwg.org/dwc/terms/pathway: Pathway
+      http://rs.gbif.org/terms/1.0/eventType: EventType
+      http://rs.tdwg.org/dwc/terms/occurrenceStatus: OccurrenceStatus
 
 #locationInfoConfig:
 #    countryNamesFile : /data/pipelines-data/resources/countries.txt

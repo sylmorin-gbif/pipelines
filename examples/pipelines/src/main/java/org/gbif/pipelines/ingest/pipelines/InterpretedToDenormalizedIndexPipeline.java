@@ -2,13 +2,10 @@ package org.gbif.pipelines.ingest.pipelines;
 
 import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.AVRO_EXTENSION;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-
-import au.org.ala.utils.CombinedYamlConfiguration;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +34,7 @@ import org.gbif.pipelines.io.avro.LocationRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.io.avro.MultimediaRecord;
 import org.gbif.pipelines.io.avro.TemporalRecord;
-import org.gbif.pipelines.transforms.converters.ParentJsonTransform;
+import org.gbif.pipelines.transforms.converters.DenormalizedJsonTransform;
 import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.LocationTransform;
 import org.gbif.pipelines.transforms.core.TemporalTransform;
@@ -82,11 +79,10 @@ import org.slf4j.MDC;
  */
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class InterpretedToParentIndexPipeline {
+public class InterpretedToDenormalizedIndexPipeline {
 
-  public static void main(String[] args) throws IOException {
-    String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "elastic");
-    EsIndexingPipelineOptions options = PipelinesOptionsFactory.createIndexing(combinedArgs);
+  public static void main(String[] args) {
+    EsIndexingPipelineOptions options = PipelinesOptionsFactory.createIndexing(args);
     run(options);
   }
 
@@ -165,7 +161,7 @@ public class InterpretedToParentIndexPipeline {
 
     log.info("Adding step 3: Converting into a json object");
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
-        ParentJsonTransform.builder()
+        DenormalizedJsonTransform.builder()
             .extendedRecordTag(verbatimTransform.getTag())
             .identifierRecordTag(identifierTransform.getTag())
             .eventCoreRecordTag(eventCoreTransform.getTag())

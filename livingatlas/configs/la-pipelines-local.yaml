@@ -1,1 +1,85 @@
-# which filesystem to use: local or hdfs
+# Deployment specific configuration for locql machine using a locally installed HDFS.
+# This file should be copied over `la-pipelines-local.yaml` when deployed
+# so that it is used by the scripts.
+#
+run:
+  # where to run: local, spark-embedded or spark-cluster
+  platform: local
+  local:
+    # jar: we get the jar from our dev or production environment
+    sparkTmp: /data/spark-tmp
+    dwcaTmp: /data/dwca-tmp
+    dwcaImportDir: hdfs://localhost:9000/dwca-imports
+    sparkMaster: ""
+  spark-embedded:
+    # jar: we get the jar from our dev or production environment
+    sparkTmp: /data/spark-tmp
+    dwcaTmp: /data/dwca-tmp
+    dwcaImportDir: hdfs://localhost:9000/dwca-imports
+    sparkMaster: ""
+  spark-cluster:
+    jar: /efs-mount-point/la-pipelines.jar
+    dwcaImportDir: hdfs://localhost:9000/dwca-imports
+    sparkTmp: /data/spark-tmp
+    sparkMaster: spark://localhost:7077
+
+collectory:
+  wsUrl: https://collections-test.ala.org.au/ws/
+  timeoutSec: 70
+  httpHeaders:
+    Authorization: << ADD ME >>
+
+imageService:
+  wsUrl: https://images-test.ala.org.au
+  httpHeaders:
+    apiKey: << ADD ME >>
+
+gbifConfig:
+  vocabularyConfig:
+    vocabulariesPath: hdfs://localhost:9000/pipelines-vocabularies/
+    vocabulariesNames:
+      http://rs.tdwg.org/dwc/terms/degreeOfEstablishment: DegreeOfEstablishment
+      http://rs.tdwg.org/dwc/terms/lifeStage: LifeStage
+      http://rs.tdwg.org/dwc/terms/establishmentMeans: EstablishmentMeans
+      http://rs.tdwg.org/dwc/terms/pathway: Pathway
+      http://rs.tdwg.org/dwc/terms/eventType: EventType
+      http://rs.tdwg.org/dwc/terms/occurrenceStatus: OccurrenceStatus
+
+general:
+  attempt: 1
+  hdfsSiteConfig: /Users/mar759/dev/hadoop/etc/hadoop/hdfs-site.xml
+  coreSiteConfig: /Users/mar759/dev/hadoop/etc/hadoop/core-site.xml
+  inputPath: hdfs://localhost:9000/pipelines-data
+  targetPath: hdfs://localhost:9000/pipelines-data
+dwca-avro:
+  inputPath: hdfs://localhost:9000/dwca-imports/{datasetId}/{datasetId}.zip
+  targetPath: hdfs://localhost:9000/pipelines-data
+  tempLocation: /data/spark-tmp/dwca-avro/{datasetId}
+interpret:
+  inputPath: hdfs://localhost:9000/pipelines-data/{datasetId}/1/verbatim.avro
+  targetPath: hdfs://localhost:9000/pipelines-data
+dataset-validated-dump:
+  inputPath: hdfs://localhost:9000/pipelines-data
+dataset-count-dump:
+  inputPath: hdfs://localhost:9000/pipelines-data
+dataset-archive-list:
+  inputPath: hdfs://localhost:9000/dwca-imports/
+images:
+  inputPath: hdfs://localhost:9000/pipelines-data
+  targetPath: hdfs://localhost:9000/pipelines-data
+export-latlng:
+  inputPath: hdfs://localhost:9000/pipelines-data
+uuid:
+  inputPath: hdfs://localhost:9000/pipelines-data
+validation-report:
+  inputPath: hdfs://localhost:9000/pipelines-data
+  checkSolr: false
+sample-avro:
+  inputPath: hdfs://localhost:9000/pipelines-data
+index:
+  inputPath: hdfs://localhost:9000/pipelines-data
+  zkHost: localhost:9983
+outlier:
+  inputPath: hdfs://localhost:9000/pipelines-data
+  targetPath: hdfs://localhost:9000/pipelines-outlier
+

@@ -6,12 +6,16 @@ import au.org.ala.kvs.cache.GeocodeKvStoreFactory;
 import au.org.ala.pipelines.transforms.ALATemporalTransform;
 import au.org.ala.pipelines.transforms.LocationTransform;
 import au.org.ala.pipelines.transforms.MetadataTransform;
+
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import au.org.ala.utils.CombinedYamlConfiguration;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +29,7 @@ import org.gbif.pipelines.common.beam.options.InterpretationPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
 import org.gbif.pipelines.common.beam.utils.PathBuilder;
 import org.gbif.pipelines.core.utils.FsUtils;
+import org.gbif.pipelines.factory.FileVocabularyFactory;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.transforms.common.ExtensionFilterTransform;
@@ -65,8 +70,9 @@ import org.slf4j.MDC;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ALAVerbatimToInterpretedPipeline {
 
-  public static void main(String[] args) {
-    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(args);
+  public static void main(String[] args) throws IOException {
+    String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "interpret");
+    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(combinedArgs);
     run(options);
   }
 
@@ -115,8 +121,16 @@ public class ALAVerbatimToInterpretedPipeline {
             .dataResourceKvStoreSupplier(ALAAttributionKVStoreFactory.getInstanceSupplier(config))
             .datasetId(datasetId)
             .create();
-
-    EventCoreTransform eventCoreTransform = EventCoreTransform.builder().create();
+    EventCoreTransform eventCoreTransform =
+        EventCoreTransform.builder()
+            .vocabularyServiceSupplier(
+                FileVocabularyFactory.builder()
+                    .config(config.getGbifConfig())
+                    .hdfsSiteConfig(hdfsSiteConfig)
+                    .coreSiteConfig(coreSiteConfig)
+                    .build()
+                    .getInstanceSupplier())
+            .create();
     IdentifierTransform identifierTransform =
         IdentifierTransform.builder().datasetKey(datasetId).create();
     VerbatimTransform verbatimTransform = VerbatimTransform.create();
