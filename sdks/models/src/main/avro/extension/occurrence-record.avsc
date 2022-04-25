@@ -1,0 +1,25 @@
+[
+
+{
+  "name": "Occurrence",
+  "namespace": "org.gbif.pipelines.io.avro",
+  "type": "record",
+  "doc": "A container for interpreted multimedia fields.",
+  "fields": [
+    {"name": "occurrenceID", "type": "string", "doc":"Pipelines identifier"},
+    {"name": "basic", "type": "BasicRecord"},
+    {"name": "taxon", "type": "TaxonRecord", "default" : null},
+    {"name": "alaTaxon", "type": "ALATaxonRecord", "default" : null}
+  ]
+},
+  {
+    "name": "Occurrences",
+    "namespace": "org.gbif.pipelines.io.avro",
+    "type": "record",
+    "doc": "A container for interpreted occurrences.",
+    "fields": [
+      {"name": "id", "type": "string", "doc":"Pipelines identifier"},
+      {"name": "occurrenceRecords", "type": {"type" : "array", "items" : "Occurrence"}, "default" : []}
+    ]
+  }
+]

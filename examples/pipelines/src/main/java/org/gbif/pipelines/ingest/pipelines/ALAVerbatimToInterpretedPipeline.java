@@ -6,12 +6,16 @@ import au.org.ala.kvs.cache.GeocodeKvStoreFactory;
 import au.org.ala.pipelines.transforms.ALATemporalTransform;
 import au.org.ala.pipelines.transforms.LocationTransform;
 import au.org.ala.pipelines.transforms.MetadataTransform;
+
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import au.org.ala.utils.CombinedYamlConfiguration;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,13 +24,12 @@ import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.values.PCollection;
 import org.gbif.common.parsers.date.DateComponentOrdering;
-import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
 import org.gbif.pipelines.common.beam.options.InterpretationPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
 import org.gbif.pipelines.common.beam.utils.PathBuilder;
-import org.gbif.pipelines.core.pojo.HdfsConfigs;
 import org.gbif.pipelines.core.utils.FsUtils;
+import org.gbif.pipelines.factory.FileVocabularyFactory;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
 import org.gbif.pipelines.transforms.common.ExtensionFilterTransform;
@@ -67,10 +70,9 @@ import org.slf4j.MDC;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ALAVerbatimToInterpretedPipeline {
 
-  private static final DwcTerm CORE_TERM = DwcTerm.Event;
-
-  public static void main(String[] args) {
-    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(args);
+  public static void main(String[] args) throws IOException {
+    String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "interpret");
+    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(combinedArgs);
     run(options);
   }
 
@@ -86,18 +88,20 @@ public class ALAVerbatimToInterpretedPipeline {
     Integer attempt = options.getAttempt();
     Set<String> types = options.getInterpretationTypes();
     String targetPath = options.getTargetPath();
-    HdfsConfigs hdfsConfigs =
-        HdfsConfigs.create(options.getHdfsSiteConfig(), options.getCoreSiteConfig());
+    String hdfsSiteConfig = options.getHdfsSiteConfig();
+    String coreSiteConfig = options.getCoreSiteConfig();
 
     ALAPipelinesConfig config =
-        FsUtils.readConfigFile(hdfsConfigs, options.getProperties(), ALAPipelinesConfig.class);
+        FsUtils.readConfigFile(
+            hdfsSiteConfig, coreSiteConfig, options.getProperties(), ALAPipelinesConfig.class);
 
     List<DateComponentOrdering> dateComponentOrdering =
         options.getDefaultDateFormat() == null
             ? config.getGbifConfig().getDefaultDateFormat()
             : options.getDefaultDateFormat();
 
-    FsUtils.deleteInterpretIfExist(hdfsConfigs, targetPath, datasetId, attempt, CORE_TERM, types);
+    FsUtils.deleteInterpretIfExist(
+        hdfsSiteConfig, coreSiteConfig, targetPath, datasetId, attempt, types);
 
     MDC.put("datasetKey", datasetId);
     MDC.put("attempt", attempt.toString());
@@ -105,7 +109,7 @@ public class ALAVerbatimToInterpretedPipeline {
     String id = Long.toString(LocalDateTime.now().toEpochSecond(ZoneOffset.UTC));
 
     UnaryOperator<String> pathFn =
-        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, CORE_TERM, t, id);
+        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, t, id);
 
     log.info("Creating a pipeline from options");
     Pipeline p = pipelinesFn.apply(options);
@@ -117,8 +121,16 @@ public class ALAVerbatimToInterpretedPipeline {
             .dataResourceKvStoreSupplier(ALAAttributionKVStoreFactory.getInstanceSupplier(config))
             .datasetId(datasetId)
             .create();
-
-    EventCoreTransform eventCoreTransform = EventCoreTransform.builder().create();
+    EventCoreTransform eventCoreTransform =
+        EventCoreTransform.builder()
+            .vocabularyServiceSupplier(
+                FileVocabularyFactory.builder()
+                    .config(config.getGbifConfig())
+                    .hdfsSiteConfig(hdfsSiteConfig)
+                    .coreSiteConfig(coreSiteConfig)
+                    .build()
+                    .getInstanceSupplier())
+            .create();
     IdentifierTransform identifierTransform =
         IdentifierTransform.builder().datasetKey(datasetId).create();
     VerbatimTransform verbatimTransform = VerbatimTransform.create();
@@ -205,7 +217,7 @@ public class ALAVerbatimToInterpretedPipeline {
 
     log.info("Deleting beam temporal folders");
     String tempPath = String.join("/", targetPath, datasetId, attempt.toString());
-    FsUtils.deleteDirectoryByPrefix(hdfsConfigs, tempPath, ".temp-beam");
+    FsUtils.deleteDirectoryByPrefix(hdfsSiteConfig, coreSiteConfig, tempPath, ".temp-beam");
 
     log.info("Pipeline has been finished");
   }

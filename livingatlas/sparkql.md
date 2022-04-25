@@ -19,6 +19,10 @@ verbatimDF: org.apache.spark.sql.DataFrame = [id: string, coreRowType: string ..
 
 ## Record count
 
+
+spark.sqlContext.sql("CREATE TEMPORARY VIEW EVENT USING avro OPTIONS (path \"hdfs://localhost:9000/pipelines-data/**/1/interpreted/event_core/*.avro\")")
+spark.sqlContext.sql("SELECT * FROM EVENT where eventType is NOT NULL ").show(false)
+
 `
 scala> verbatimDF.count
 res1: Long = 18675270 
