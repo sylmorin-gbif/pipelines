@@ -6,7 +6,7 @@ import au.org.ala.kvs.cache.GeocodeKvStoreFactory;
 import au.org.ala.pipelines.transforms.ALATemporalTransform;
 import au.org.ala.pipelines.transforms.LocationTransform;
 import au.org.ala.pipelines.transforms.MetadataTransform;
-
+import au.org.ala.utils.CombinedYamlConfiguration;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-
-import au.org.ala.utils.CombinedYamlConfiguration;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,7 +70,8 @@ public class ALAVerbatimToInterpretedPipeline {
 
   public static void main(String[] args) throws IOException {
     String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "interpret");
-    InterpretationPipelineOptions options = PipelinesOptionsFactory.createInterpretation(combinedArgs);
+    InterpretationPipelineOptions options =
+        PipelinesOptionsFactory.createInterpretation(combinedArgs);
     run(options);
   }
 

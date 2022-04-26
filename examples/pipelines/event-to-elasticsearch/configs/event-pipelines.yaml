@@ -22,6 +22,7 @@ gbifConfig:
     - http://purl.org/germplasm/germplasmTerm#MeasurementTrait
     - http://purl.org/germplasm/germplasmTerm#MeasurementTrial
     - http://rs.tdwg.org/dwc/terms/Identification
+    - http://rs.tdwg.org/dwc/terms/Occurrence
     - http://rs.gbif.org/terms/1.0/Identifier
     - http://rs.gbif.org/terms/1.0/Image
     - http://rs.tdwg.org/dwc/terms/MeasurementOrFact
