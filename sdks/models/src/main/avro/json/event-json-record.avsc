@@ -103,7 +103,16 @@
       {"name":"issues","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"notIssues","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"extensions","type":{"type":"array","items":"string"},"default":[],"doc":""},
-      {"name":"verbatim","type":["null","VerbatimRecord"],"default":null,"doc":""}
+      {"name":"verbatim","type":["null","VerbatimRecord"],"default":null,"doc":""},
+      // Aggregations
+      {"name":"occurrenceCount","type":["null","int"],"default":null,"doc":""},
+      {"name":"childEventCount","type":["null","int"],"default":null,"doc":""},
+      {"name":"measurementOrFacts","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"phyla","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"classes","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"orders","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"families","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"genera","type":{"type":"array","items":"string"},"default":[],"doc":""}
     ]
   }
 ]

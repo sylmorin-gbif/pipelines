@@ -235,6 +235,16 @@ public class ParentJsonConverter {
   }
 
   private void mapExtendedRecord(EventJsonRecord.Builder builder) {
+
+    // set occurrence count
+    Integer occurrenceCount =
+        Optional.of(verbatim.getExtensions())
+            .map(exts -> exts.get(DwcTerm.Occurrence.qualifiedName()))
+            .map(ext -> ext.size())
+            .orElse(0);
+
+    builder.setOccurrenceCount(occurrenceCount);
+
     builder.setExtensions(JsonConverter.convertExtenstions(verbatim));
 
     // Set raw as indexed
