@@ -101,7 +101,7 @@ gbifConfig:
       http://rs.tdwg.org/dwc/terms/lifeStage: LifeStage
       http://rs.tdwg.org/dwc/terms/establishmentMeans: EstablishmentMeans
       http://rs.tdwg.org/dwc/terms/pathway: Pathway
-      http://rs.tdwg.org/dwc/terms/eventType: EventType
+      http://rs.gbif.org/terms/1.0/eventType: EventType
       http://rs.tdwg.org/dwc/terms/occurrenceStatus: OccurrenceStatus
 
 # class: DumpArchiveList
