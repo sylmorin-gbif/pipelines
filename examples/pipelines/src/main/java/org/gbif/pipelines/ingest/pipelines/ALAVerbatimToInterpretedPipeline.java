@@ -36,6 +36,7 @@ import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.specific.IdentifierTransform;
 import org.slf4j.MDC;
@@ -154,6 +155,9 @@ public class ALAVerbatimToInterpretedPipeline {
     ImageTransform imageTransform =
         ImageTransform.builder().orderings(dateComponentOrdering).create();
 
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
+
     log.info("Creating beam pipeline");
     // Metadata TODO START: Will ALA use it?
     PCollection<MetadataRecord> metadataRecord =
@@ -203,6 +207,10 @@ public class ALAVerbatimToInterpretedPipeline {
     uniqueRawRecords
         .apply("Interpret location", locationTransform.interpret())
         .apply("Write location to avro", locationTransform.write(pathFn));
+
+    uniqueRawRecords
+        .apply("Interpret measurementOrFact", measurementOrFactTransform.interpret())
+        .apply("Write measurementOrFact to avro", measurementOrFactTransform.write(pathFn));
 
     // Wite filtered verbatim avro files
     uniqueRawRecords.apply("Write verbatim to avro", verbatimTransform.write(pathFn));

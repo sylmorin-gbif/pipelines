@@ -107,7 +107,9 @@
       // Aggregations
       {"name":"occurrenceCount","type":["null","int"],"default":null,"doc":""},
       {"name":"childEventCount","type":["null","int"],"default":null,"doc":""},
-      {"name":"measurementOrFacts","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"measurementOrFactTypes","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"measurementOrFactMethods","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"measurementOrFactCount","type":["null","int"],"default":null,"doc":""},
       {"name":"phyla","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"classes","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"orders","type":{"type":"array","items":"string"},"default":[],"doc":""},

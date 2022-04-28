@@ -2,27 +2,15 @@ package org.gbif.pipelines.core.converters;
 
 import static org.gbif.pipelines.core.utils.ModelUtils.extractOptValue;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.dwc.terms.TermFactory;
 import org.gbif.pipelines.core.utils.HashConverter;
-import org.gbif.pipelines.io.avro.EventCoreRecord;
-import org.gbif.pipelines.io.avro.ExtendedRecord;
-import org.gbif.pipelines.io.avro.IdentifierRecord;
-import org.gbif.pipelines.io.avro.LocationRecord;
-import org.gbif.pipelines.io.avro.MetadataRecord;
-import org.gbif.pipelines.io.avro.MultimediaRecord;
-import org.gbif.pipelines.io.avro.TaxonRecord;
-import org.gbif.pipelines.io.avro.TemporalRecord;
+import org.gbif.pipelines.io.avro.*;
 import org.gbif.pipelines.io.avro.grscicoll.GrscicollRecord;
 import org.gbif.pipelines.io.avro.json.EventJsonRecord;
 import org.gbif.pipelines.io.avro.json.JoinRecord;
@@ -43,6 +31,7 @@ public class ParentJsonConverter {
   private final GrscicollRecord grscicoll;
   private final MultimediaRecord multimedia;
   private final ExtendedRecord verbatim;
+  private final MeasurementOrFactRecord measurementOrFact;
 
   public List<ParentJsonRecord> convertToParents() {
 
@@ -131,6 +120,8 @@ public class ParentJsonConverter {
     mapLocationRecord(builder);
     mapMultimediaRecord(builder);
     mapExtendedRecord(builder);
+
+    mapMeasurementOrFactRecord(builder);
 
     return builder;
   }
@@ -253,6 +244,29 @@ public class ParentJsonConverter {
     extractOptValue(verbatim, DwcTerm.institutionCode).ifPresent(builder::setInstitutionCode);
     extractOptValue(verbatim, DwcTerm.verbatimDepth).ifPresent(builder::setVerbatimDepth);
     extractOptValue(verbatim, DwcTerm.verbatimElevation).ifPresent(builder::setVerbatimElevation);
+  }
+
+  private void mapMeasurementOrFactRecord(EventJsonRecord.Builder builder) {
+    if (measurementOrFact != null) {
+
+      List<String> methods =
+              measurementOrFact.getMeasurementOrFactItems().stream()
+              .map(mof -> mof.getMeasurementMethod())
+              .filter(s -> Objects.nonNull(s))
+              .distinct()
+              .collect(Collectors.toList());
+
+      List<String> types =
+              measurementOrFact.getMeasurementOrFactItems().stream()
+              .map(mof -> mof.getMeasurementType())
+              .filter(s -> Objects.nonNull(s))
+              .distinct()
+              .collect(Collectors.toList());
+
+      builder.setMeasurementOrFactMethods(methods);
+      builder.setMeasurementOrFactTypes(types);
+      builder.setMeasurementOrFactCount(measurementOrFact.getMeasurementOrFactItems().size());
+    }
   }
 
   private void mapIssues(EventJsonRecord.Builder builder) {
