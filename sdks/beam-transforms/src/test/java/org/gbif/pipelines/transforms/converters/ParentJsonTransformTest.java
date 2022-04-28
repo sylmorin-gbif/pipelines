@@ -22,26 +22,14 @@ import org.gbif.api.vocabulary.License;
 import org.gbif.api.vocabulary.OccurrenceIssue;
 import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.core.converters.ParentJsonConverter;
-import org.gbif.pipelines.io.avro.AudubonRecord;
-import org.gbif.pipelines.io.avro.EventCoreRecord;
-import org.gbif.pipelines.io.avro.EventDate;
-import org.gbif.pipelines.io.avro.ExtendedRecord;
-import org.gbif.pipelines.io.avro.GadmFeatures;
-import org.gbif.pipelines.io.avro.IdentifierRecord;
-import org.gbif.pipelines.io.avro.ImageRecord;
-import org.gbif.pipelines.io.avro.LocationRecord;
-import org.gbif.pipelines.io.avro.MachineTag;
-import org.gbif.pipelines.io.avro.MediaType;
-import org.gbif.pipelines.io.avro.MetadataRecord;
-import org.gbif.pipelines.io.avro.Multimedia;
-import org.gbif.pipelines.io.avro.MultimediaRecord;
-import org.gbif.pipelines.io.avro.TemporalRecord;
+import org.gbif.pipelines.io.avro.*;
 import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.LocationTransform;
 import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.specific.IdentifierTransform;
 import org.junit.Rule;
@@ -240,6 +228,7 @@ public class ParentJsonTransformTest {
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
     AudubonTransform audubonTransform = AudubonTransform.builder().create();
     ImageTransform imageTransform = ImageTransform.builder().create();
+    MeasurementOrFactTransform measurementOrFactTransform = MeasurementOrFactTransform.builder().create();
 
     // When
     PCollectionView<MetadataRecord> metadataView =
@@ -277,6 +266,10 @@ public class ParentJsonTransformTest {
         p.apply("Read Audubon", Create.empty(new TypeDescriptor<AudubonRecord>() {}))
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
+    PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
+            p.apply("Read MeasurementOrFactTransform", Create.empty(new TypeDescriptor<MeasurementOrFactRecord>() {}))
+                    .apply("Map MeasurementOrFactTransform to KV", measurementOrFactTransform.toKv());
+
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
         ParentJsonTransform.builder()
             .extendedRecordTag(verbatimTransform.getTag())
@@ -287,6 +280,7 @@ public class ParentJsonTransformTest {
             .multimediaRecordTag(multimediaTransform.getTag())
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
+            .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .metadataView(metadataView)
             .build()
             .converter();
@@ -305,6 +299,8 @@ public class ParentJsonTransformTest {
             .and(identifierTransform.getTag(), identifierCollection)
             // Raw
             .and(verbatimTransform.getTag(), verbatimCollection)
+            // Raw
+            .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
             // Apply
             .apply("Grouping objects", CoGroupByKey.create())
             .apply("Merging to json", eventJsonDoFn);
@@ -319,6 +315,7 @@ public class ParentJsonTransformTest {
             .location(lr)
             .multimedia(mmr)
             .verbatim(er)
+//            .measurementOrFactRecord(m)
             .build()
             .toJsons();
 

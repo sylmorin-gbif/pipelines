@@ -17,15 +17,7 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.gbif.pipelines.core.converters.MultimediaConverter;
 import org.gbif.pipelines.core.converters.ParentJsonConverter;
-import org.gbif.pipelines.io.avro.AudubonRecord;
-import org.gbif.pipelines.io.avro.EventCoreRecord;
-import org.gbif.pipelines.io.avro.ExtendedRecord;
-import org.gbif.pipelines.io.avro.IdentifierRecord;
-import org.gbif.pipelines.io.avro.ImageRecord;
-import org.gbif.pipelines.io.avro.LocationRecord;
-import org.gbif.pipelines.io.avro.MetadataRecord;
-import org.gbif.pipelines.io.avro.MultimediaRecord;
-import org.gbif.pipelines.io.avro.TemporalRecord;
+import org.gbif.pipelines.io.avro.*;
 
 /**
  * Beam level transformation for the ES output json. The transformation consumes objects, which
@@ -82,6 +74,8 @@ public class ParentJsonTransform implements Serializable {
   @NonNull private final TupleTag<ImageRecord> imageRecordTag;
   @NonNull private final TupleTag<AudubonRecord> audubonRecordTag;
 
+ private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
+
   @NonNull private final PCollectionView<MetadataRecord> metadataView;
 
   public SingleOutput<KV<String, CoGbkResult>, String> converter() {
@@ -117,6 +111,11 @@ public class ParentJsonTransform implements Serializable {
             AudubonRecord ar =
                 v.getOnly(audubonRecordTag, AudubonRecord.newBuilder().setId(k).build());
 
+            MeasurementOrFactRecord mfr =
+                v.getOnly(
+                    measurementOrFactRecordTag,
+                    MeasurementOrFactRecord.newBuilder().setId(k).build());
+
             MultimediaRecord mmr = MultimediaConverter.merge(mr, imr, ar);
 
             // Convert and
@@ -129,6 +128,7 @@ public class ParentJsonTransform implements Serializable {
                     .location(lr)
                     .multimedia(mmr)
                     .verbatim(er)
+                    .measurementOrFact(mfr)
                     .build()
                     .toJsons();
 

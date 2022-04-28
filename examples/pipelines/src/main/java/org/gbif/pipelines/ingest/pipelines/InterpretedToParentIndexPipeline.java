@@ -27,15 +27,7 @@ import org.gbif.pipelines.common.beam.options.EsIndexingPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
 import org.gbif.pipelines.common.beam.utils.PathBuilder;
 import org.gbif.pipelines.ingest.utils.ElasticsearchTools;
-import org.gbif.pipelines.io.avro.AudubonRecord;
-import org.gbif.pipelines.io.avro.EventCoreRecord;
-import org.gbif.pipelines.io.avro.ExtendedRecord;
-import org.gbif.pipelines.io.avro.IdentifierRecord;
-import org.gbif.pipelines.io.avro.ImageRecord;
-import org.gbif.pipelines.io.avro.LocationRecord;
-import org.gbif.pipelines.io.avro.MetadataRecord;
-import org.gbif.pipelines.io.avro.MultimediaRecord;
-import org.gbif.pipelines.io.avro.TemporalRecord;
+import org.gbif.pipelines.io.avro.*;
 import org.gbif.pipelines.transforms.converters.ParentJsonTransform;
 import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.LocationTransform;
@@ -43,6 +35,7 @@ import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
+import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
 import org.gbif.pipelines.transforms.extension.MultimediaTransform;
 import org.gbif.pipelines.transforms.metadata.MetadataTransform;
 import org.gbif.pipelines.transforms.specific.IdentifierTransform;
@@ -119,6 +112,8 @@ public class InterpretedToParentIndexPipeline {
     VerbatimTransform verbatimTransform = VerbatimTransform.create();
     TemporalTransform temporalTransform = TemporalTransform.builder().create();
     LocationTransform locationTransform = LocationTransform.builder().create();
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
 
     // Extension
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
@@ -162,6 +157,10 @@ public class InterpretedToParentIndexPipeline {
         p.apply("Read Audubon", audubonTransform.read(pathFn))
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
+    PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
+        p.apply("Read Audubon", measurementOrFactTransform.read(pathFn))
+            .apply("Map Audubon to KV", measurementOrFactTransform.toKv());
+
     log.info("Adding step 3: Converting into a json object");
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
         ParentJsonTransform.builder()
@@ -173,6 +172,7 @@ public class InterpretedToParentIndexPipeline {
             .multimediaRecordTag(multimediaTransform.getTag())
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
+            .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .metadataView(metadataView)
             .build()
             .converter();
@@ -191,6 +191,8 @@ public class InterpretedToParentIndexPipeline {
             .and(identifierTransform.getTag(), identifierCollection)
             // Raw
             .and(verbatimTransform.getTag(), verbatimCollection)
+            .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
+
             // Apply
             .apply("Grouping objects", CoGroupByKey.create())
             .apply("Merging to json", eventJsonDoFn);
