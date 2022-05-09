@@ -90,7 +90,23 @@ public class ParentJsonConverter {
             .setCrawlId(metadata.getCrawlId())
             .setInternalId(identifier.getInternalId())
             .setUniqueKey(identifier.getUniqueKey())
+            .setHasCoordinate(location.getHasCoordinate())
+            .setDecimalLatitude(location.getDecimalLatitude())
+            .setDecimalLongitude(location.getDecimalLongitude())
             .setMetadataBuilder(mapMetadataJsonRecord());
+
+    // Coordinates
+    Double decimalLongitude = location.getDecimalLongitude();
+    Double decimalLatitude = location.getDecimalLatitude();
+    if (decimalLongitude != null && decimalLatitude != null) {
+      builder
+          .setDecimalLatitude(decimalLatitude)
+          .setDecimalLongitude(decimalLongitude)
+          // geo_point
+          .setCoordinates(JsonConverter.convertCoordinates(decimalLongitude, decimalLatitude))
+          // geo_shape
+          .setScoordinates(JsonConverter.convertScoordinates(decimalLongitude, decimalLatitude));
+    }
 
     mapCreated(builder);
 
@@ -250,14 +266,14 @@ public class ParentJsonConverter {
     if (measurementOrFact != null) {
 
       List<String> methods =
-              measurementOrFact.getMeasurementOrFactItems().stream()
+          measurementOrFact.getMeasurementOrFactItems().stream()
               .map(mof -> mof.getMeasurementMethod())
               .filter(s -> Objects.nonNull(s))
               .distinct()
               .collect(Collectors.toList());
 
       List<String> types =
-              measurementOrFact.getMeasurementOrFactItems().stream()
+          measurementOrFact.getMeasurementOrFactItems().stream()
               .map(mof -> mof.getMeasurementType())
               .filter(s -> Objects.nonNull(s))
               .distinct()
