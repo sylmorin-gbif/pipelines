@@ -59,6 +59,16 @@
     "uniqueKey": {"type": "keyword"},
     "firstLoaded": {"type": "date"},
 
+    "coordinates": {"type": "geo_point"},
+    "scoordinates": {"type": "geo_shape"},
+
+    "decimalLatitude": {"type": "double"},
+    "decimalLongitude": {"type": "double"},
+
+    "verbatimElevation": {"type": "keyword"},
+    "verbatimDepth": {"type": "keyword"},
+    "hasCoordinate": {"type": "boolean"},
+
     "metadata": {
       "type": "object",
       "properties": {
@@ -221,7 +231,7 @@
             "license": {"type": "keyword"}
           }
         },
-
+        "measurementOrFactCount": {"type": "integer"},
         "occurrenceCount": {"type": "integer"},
         "childEventCount": {"type": "integer"}
       }
