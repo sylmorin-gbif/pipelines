@@ -33,8 +33,11 @@ public class SpeciesListUtils {
 
       if (includeConservationStatus
           && speciesListRecord.getIsThreatened()
-          && (!Strings.isNullOrEmpty(speciesListRecord.getSourceStatus())
-              || !Strings.isNullOrEmpty(speciesListRecord.getStatus()))) {
+          && (
+              !Strings.isNullOrEmpty(speciesListRecord.getSourceStatus())
+              || !Strings.isNullOrEmpty(speciesListRecord.getStatus()))
+      ) {
+
         conservationStatusList.add(
             ConservationStatus.newBuilder()
                 .setSpeciesListID(speciesListRecord.getSpeciesListID())
@@ -42,7 +45,9 @@ public class SpeciesListUtils {
                 .setSourceStatus(speciesListRecord.getSourceStatus())
                 .setStatus(speciesListRecord.getStatus())
                 .build());
+
       } else if (includeInvasiveStatus && speciesListRecord.getIsInvasive()) {
+
         invasiveStatusList.add(
             InvasiveStatus.newBuilder()
                 .setSpeciesListID(speciesListRecord.getSpeciesListID())

@@ -122,8 +122,8 @@ public class SpeciesListPipeline {
     // read taxonomy extension,
     ALATaxonomyTransform alaTaxonomyTransform = ALATaxonomyTransform.builder().create();
 
-    // generate a taxonID -> occurrenceID PCollection
-    PCollection<KV<String, String>> alaTaxonID =
+    // generate a taxonID -> List of occurrenceID PCollection
+    PCollection<KV<String, Iterable<String>>> alaTaxonID =
         p.apply("Read Taxon", alaTaxonomyTransform.read(pathFn))
             .apply("Map Taxon to KV", alaTaxonomyTransform.toKv())
             .apply(Filter.by(record -> record.getValue().getTaxonConceptID() != null))
@@ -134,9 +134,10 @@ public class SpeciesListPipeline {
                       public KV<String, String> apply(KV<String, ALATaxonRecord> record) {
                         return KV.of(record.getValue().getTaxonConceptID(), record.getKey());
                       }
-                    }));
+                    }))
+            .apply(GroupByKey.create());
 
-    final TupleTag<String> t1 = new TupleTag<String>() {};
+    final TupleTag<Iterable<String>> t1 = new TupleTag<Iterable<String>>() {};
     final TupleTag<Iterable<SpeciesListRecord>> t2 = new TupleTag<Iterable<SpeciesListRecord>>() {};
 
     PCollection<KV<String, CoGbkResult>> result =
@@ -158,10 +159,10 @@ public class SpeciesListPipeline {
                 CoGbkResult result = e.getValue();
 
                 // Retrieve all integers associated with this key from pt1
-                Iterable<String> occurrenceIDs = result.getAll(t1);
+                Iterable<String> occurrenceIDs = result.getOnly(t1, null);
                 Iterable<SpeciesListRecord> speciesLists = result.getOnly(t2, null);
 
-                if (speciesLists != null) {
+                if (occurrenceIDs != null && speciesLists != null) {
                   TaxonProfile.Builder builder =
                       SpeciesListUtils.createTaxonProfileBuilder(
                           speciesLists, includeConservationStatus, includeInvasiveStatus);
