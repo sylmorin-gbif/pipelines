@@ -241,6 +241,22 @@ public class ParentJsonConverter {
         .setMediaLicenses(JsonConverter.convertMultimediaLicense(multimedia));
   }
 
+  private List<String> extractDistinctFromExtension(String extensionQualifiedName, String term) {
+    return Optional.of(verbatim.getExtensions())
+        .map(exts -> exts.get(DwcTerm.Occurrence.qualifiedName()))
+        .map(ext -> extractDistinct(DwcTerm.kingdom.qualifiedName(), ext))
+        .orElse(new ArrayList<String>());
+  }
+
+  private List<String> extractDistinct(String term, List<Map<String, String>> extension) {
+    return extension.stream()
+        .map(r -> r.get(term))
+        .distinct()
+        .filter(x -> x != null)
+        .limit(100)
+        .collect(Collectors.toList());
+  }
+
   private void mapExtendedRecord(EventJsonRecord.Builder builder) {
 
     // set occurrence count
@@ -251,6 +267,32 @@ public class ParentJsonConverter {
             .orElse(0);
 
     builder.setOccurrenceCount(occurrenceCount);
+
+    List<String> kingdoms =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.kingdom.qualifiedName());
+    List<String> phyla =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.phylum.qualifiedName());
+    List<String> classes =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.class_.qualifiedName());
+    List<String> orders =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.order.qualifiedName());
+    List<String> families =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.family.qualifiedName());
+    List<String> genera =
+        extractDistinctFromExtension(
+            DwcTerm.Occurrence.qualifiedName(), DwcTerm.genus.qualifiedName());
+
+    builder.setKingdoms(kingdoms);
+    builder.setPhyla(phyla);
+    builder.setOrders(orders);
+    builder.setClasses(classes);
+    builder.setFamilies(families);
+    builder.setGenera(genera);
 
     builder.setExtensions(JsonConverter.convertExtenstions(verbatim));
 

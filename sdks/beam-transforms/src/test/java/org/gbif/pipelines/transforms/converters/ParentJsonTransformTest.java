@@ -228,7 +228,8 @@ public class ParentJsonTransformTest {
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
     AudubonTransform audubonTransform = AudubonTransform.builder().create();
     ImageTransform imageTransform = ImageTransform.builder().create();
-    MeasurementOrFactTransform measurementOrFactTransform = MeasurementOrFactTransform.builder().create();
+    MeasurementOrFactTransform measurementOrFactTransform =
+        MeasurementOrFactTransform.builder().create();
 
     // When
     PCollectionView<MetadataRecord> metadataView =
@@ -267,8 +268,10 @@ public class ParentJsonTransformTest {
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
     PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
-            p.apply("Read MeasurementOrFactTransform", Create.empty(new TypeDescriptor<MeasurementOrFactRecord>() {}))
-                    .apply("Map MeasurementOrFactTransform to KV", measurementOrFactTransform.toKv());
+        p.apply(
+                "Read MeasurementOrFactTransform",
+                Create.empty(new TypeDescriptor<MeasurementOrFactRecord>() {}))
+            .apply("Map MeasurementOrFactTransform to KV", measurementOrFactTransform.toKv());
 
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
         ParentJsonTransform.builder()
@@ -315,7 +318,7 @@ public class ParentJsonTransformTest {
             .location(lr)
             .multimedia(mmr)
             .verbatim(er)
-//            .measurementOrFactRecord(m)
+            //            .measurementOrFactRecord(m)
             .build()
             .toJsons();
 

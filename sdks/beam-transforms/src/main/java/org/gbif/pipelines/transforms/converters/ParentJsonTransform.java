@@ -74,7 +74,7 @@ public class ParentJsonTransform implements Serializable {
   @NonNull private final TupleTag<ImageRecord> imageRecordTag;
   @NonNull private final TupleTag<AudubonRecord> audubonRecordTag;
 
- private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
+  private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
 
   @NonNull private final PCollectionView<MetadataRecord> metadataView;
 
