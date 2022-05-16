@@ -76,6 +76,8 @@ public class ParentJsonTransform implements Serializable {
 
   private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
 
+  private final TupleTag<DenormalisedEvent> denormalisedEventTag;
+
   @NonNull private final PCollectionView<MetadataRecord> metadataView;
 
   public SingleOutput<KV<String, CoGbkResult>, String> converter() {
@@ -111,6 +113,10 @@ public class ParentJsonTransform implements Serializable {
             AudubonRecord ar =
                 v.getOnly(audubonRecordTag, AudubonRecord.newBuilder().setId(k).build());
 
+            // Denormed events
+            DenormalisedEvent de =
+                v.getOnly(denormalisedEventTag, DenormalisedEvent.newBuilder().setId(k).build());
+
             MeasurementOrFactRecord mfr =
                 v.getOnly(
                     measurementOrFactRecordTag,
@@ -129,6 +135,7 @@ public class ParentJsonTransform implements Serializable {
                     .multimedia(mmr)
                     .verbatim(er)
                     .measurementOrFact(mfr)
+                    .denormalisedEvent(de)
                     .build()
                     .toJsons();
 

@@ -115,7 +115,13 @@
       {"name":"classes","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"orders","type":{"type":"array","items":"string"},"default":[],"doc":""},
       {"name":"families","type":{"type":"array","items":"string"},"default":[],"doc":""},
-      {"name":"genera","type":{"type":"array","items":"string"},"default":[],"doc":""}
+      {"name":"genera","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      // Denormalised event info
+      {"name":"eventHierarchy","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"eventTypeHierarchy","type":{"type":"array","items":"string"},"default":[],"doc":""},
+      {"name":"eventHierarchyJoined","type":["null","string"],"default":null,"doc":""},
+      {"name":"eventTypeHierarchyJoined","type":["null","string"],"default":null,"doc":""},
+      {"name":"eventHierarchyLevels","type":["null","int"],"default":null,"doc":""}
     ]
   }
 ]

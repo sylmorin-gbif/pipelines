@@ -13,15 +13,16 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.elasticsearch.ElasticsearchIO;
+import org.apache.beam.sdk.io.fs.EmptyMatchTreatment;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo.SingleOutput;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.CoGroupByKey;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.*;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
 import org.gbif.pipelines.common.beam.options.EsIndexingPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
@@ -161,6 +162,11 @@ public class InterpretedToParentIndexPipeline {
         p.apply("Read Audubon", measurementOrFactTransform.read(pathFn))
             .apply("Map Audubon to KV", measurementOrFactTransform.toKv());
 
+    PCollection<KV<String, DenormalisedEvent>> denormCollection =
+        getEventDenormalisation(options, p);
+
+    TupleTag<DenormalisedEvent> denormalisedEventTag = new TupleTag<>();
+
     log.info("Adding step 3: Converting into a json object");
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
         ParentJsonTransform.builder()
@@ -173,6 +179,7 @@ public class InterpretedToParentIndexPipeline {
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
             .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
+            .denormalisedEventTag(denormalisedEventTag)
             .metadataView(metadataView)
             .build()
             .converter();
@@ -192,6 +199,8 @@ public class InterpretedToParentIndexPipeline {
             // Raw
             .and(verbatimTransform.getTag(), verbatimCollection)
             .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
+            // denorm
+            .and(denormalisedEventTag, denormCollection)
 
             // Apply
             .apply("Grouping objects", CoGroupByKey.create())
@@ -235,5 +244,27 @@ public class InterpretedToParentIndexPipeline {
     MetricsHandler.saveCountersToTargetPathFile(options, result.metrics());
 
     log.info("Pipeline has been finished");
+  }
+
+  /** Load image service records for a dataset. */
+  private static PCollection<KV<String, DenormalisedEvent>> getEventDenormalisation(
+      EsIndexingPipelineOptions options, Pipeline p) {
+    PCollection<KV<String, DenormalisedEvent>> denorm =
+        p.apply(
+                AvroIO.read(DenormalisedEvent.class)
+                    .withEmptyMatchTreatment(EmptyMatchTreatment.ALLOW)
+                    .from(
+                        String.join(
+                            "/",
+                            options.getTargetPath(),
+                            options.getDatasetId().trim(),
+                            options.getAttempt().toString(),
+                            "interpreted",
+                            "event_hierarchy",
+                            "*.avro")))
+            .apply(
+                MapElements.into(new TypeDescriptor<KV<String, DenormalisedEvent>>() {})
+                    .via((DenormalisedEvent tr) -> KV.of(tr.getId(), tr)));
+    return denorm;
   }
 }

@@ -79,6 +79,11 @@ public class CoreInterpreter {
   }
 
   /** {@link DwcTerm#datasetID} interpretation. */
+  public static void interpretParentEventID(ExtendedRecord er, Consumer<String> consumer) {
+    extractOptValue(er, DwcTerm.parentEventID).ifPresent(consumer);
+  }
+
+  /** {@link DwcTerm#datasetID} interpretation. */
   public static void interpretDatasetID(ExtendedRecord er, Consumer<List<String>> consumer) {
     extractOptListValue(er, DwcTerm.datasetID).ifPresent(consumer);
   }
