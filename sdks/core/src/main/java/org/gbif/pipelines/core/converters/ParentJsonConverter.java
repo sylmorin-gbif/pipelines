@@ -7,6 +7,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.dwc.terms.TermFactory;
 import org.gbif.pipelines.core.utils.HashConverter;
@@ -32,6 +33,7 @@ public class ParentJsonConverter {
   private final MultimediaRecord multimedia;
   private final ExtendedRecord verbatim;
   private final MeasurementOrFactRecord measurementOrFact;
+  private final DenormalisedEvent denormalisedEvent;
 
   public List<ParentJsonRecord> convertToParents() {
 
@@ -131,6 +133,7 @@ public class ParentJsonConverter {
     builder.setId(verbatim.getId());
     mapIssues(builder);
 
+    mapDenormalisedEvent(builder);
     mapEventCoreRecord(builder);
     mapTemporalRecord(builder);
     mapLocationRecord(builder);
@@ -156,6 +159,34 @@ public class ParentJsonConverter {
         .setProtocol(metadata.getProtocol())
         .setPublisherTitle(metadata.getPublisherTitle())
         .setPublishingOrganizationKey(metadata.getPublishingOrganizationKey());
+  }
+
+  private void mapDenormalisedEvent(EventJsonRecord.Builder builder) {
+
+    if (denormalisedEvent.getPath() != null) {
+
+      String[] pathElements = denormalisedEvent.getPath().split("\\|\\|\\|");
+      List<String> eventTypes = new ArrayList<>();
+      List<String> eventIDs = new ArrayList<>();
+
+      Arrays.stream(pathElements)
+          .filter(x -> Strings.isNotBlank(x))
+          .map(x -> x.split("\\$\\$\\$"))
+          .forEach(
+              elem -> {
+                if (elem != null && elem.length == 2) {
+                  eventIDs.add(elem[0]);
+                  eventTypes.add(elem[1]);
+                }
+              });
+
+      //   || RLS-Survey || 912347474-SiteVisit || 912347474-0-Sample
+      builder.setEventHierarchy(eventIDs);
+      builder.setEventTypeHierarchy(eventTypes);
+      builder.setEventHierarchyJoined(String.join(" / ", eventIDs));
+      builder.setEventTypeHierarchyJoined(String.join(" / ", eventTypes));
+      builder.setEventHierarchyLevels(eventIDs.size());
+    }
   }
 
   private void mapEventCoreRecord(EventJsonRecord.Builder builder) {
@@ -243,8 +274,8 @@ public class ParentJsonConverter {
 
   private List<String> extractDistinctFromExtension(String extensionQualifiedName, String term) {
     return Optional.of(verbatim.getExtensions())
-        .map(exts -> exts.get(DwcTerm.Occurrence.qualifiedName()))
-        .map(ext -> extractDistinct(DwcTerm.kingdom.qualifiedName(), ext))
+        .map(exts -> exts.get(extensionQualifiedName))
+        .map(ext -> extractDistinct(term, ext))
         .orElse(new ArrayList<String>());
   }
 

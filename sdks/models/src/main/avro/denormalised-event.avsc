@@ -1,0 +1,9 @@
+{
+  "name": "DenormalisedEvent",
+  "namespace": "org.gbif.pipelines.io.avro",
+  "type": "record",
+  "fields": [
+    {"name": "id", "type": ["null", "string"], "default" : null},
+    {"name": "path", "type": ["null", "string"], "default" : null }
+  ]
+}
