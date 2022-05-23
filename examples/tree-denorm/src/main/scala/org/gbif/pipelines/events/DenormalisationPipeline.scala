@@ -61,17 +61,37 @@ object DenormalisationPipeline {
     // RDD to DF, implicit conversion
     import spark.implicits._
 
-    System.out.println("Load AVRO")
-    val eventCoreDF = spark.read.format("avro")
-      .load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro")
+    System.out.println("Load events")
+    val eventCoreDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro").as("event")
+    System.out.println("Load location")
+    val locationDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/location/*.avro").as("location")
+    System.out.println("Load temporal")
+    val temporalDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/temporal/*.avro").as("temporal")
 
-    val eventsDF = eventCoreDF.select(
-      col("id").as("id"),
-      col("eventType.concept").as("event_type"),
-      col("parentEventID").as("parent_event_id"))
+    System.out.println("Join")
+    val joined_df = eventCoreDF.
+      join(locationDF, col("event.id") === col("location.id"), "inner").
+      join(temporalDF, col("event.id") === col("temporal.id"), "inner")
+
+    System.out.println("select from join")
+    val eventsDF = joined_df.select(
+      col("event.id").as("id"),
+      col("event.eventType.concept").as("event_type"),
+      col("event.parentEventID").as("parent_event_id"),
+//      col("event.samplingProtocol").as("sampling_protocol"),
+      col("location.countryCode").as("country_code"),
+      col("location.stateProvince").as("state_province"),
+      col("location.decimalLatitude").as("latitude"),
+      col("location.decimalLongitude").as("longitude"),
+      col("temporal.year").as("year"),
+      col("temporal.month").as("month")
+    )
 
     // primary key, root, path - dataframe to graphx for vertices
-    val verticiesDF = eventsDF.selectExpr("id","concat(id, '$$$', event_type)","concat(id, '$$$', event_type)")
+    val verticiesDF = eventsDF.selectExpr("id",
+      "concat(id, '$$$', event_type, '$$$', country_code, '$$$', state_province, '$$$', Latitude, '$$$', longitude, '$$$', year, '$$$', month)",
+      "concat(id, '$$$', event_type, '$$$', country_code, '$$$', state_province, '$$$', Latitude, '$$$', longitude, '$$$', year, '$$$', month)"
+    )
 
     // parent to child - dataframe to graphx for edges
     val edgesDF = eventsDF.selectExpr("parent_event_id","id").filter("parent_event_id is not null")
@@ -79,10 +99,10 @@ object DenormalisationPipeline {
     // call the function
     val hierarchyDF = calcTopLevelHierarchy(verticiesDF, edgesDF)
       .map {
-        case (pk,(level,root,path,iscyclic,isleaf)) =>
+        case (pk, (level, root, path, iscyclic, isleaf)) =>
           (pk.asInstanceOf[String], level, root.asInstanceOf[String], path, iscyclic, isleaf)
       }
-      .toDF("id_pk","level","root","path","iscyclic","isleaf").cache()
+      .toDF("id_pk", "level", "root", "path", "iscyclic", "isleaf").cache()
 
     // extend original table with new columns
     val eventHierarchy = hierarchyDF
