@@ -13,11 +13,7 @@ import org.gbif.dwc.terms.TermFactory;
 import org.gbif.pipelines.core.utils.HashConverter;
 import org.gbif.pipelines.io.avro.*;
 import org.gbif.pipelines.io.avro.grscicoll.GrscicollRecord;
-import org.gbif.pipelines.io.avro.json.EventJsonRecord;
-import org.gbif.pipelines.io.avro.json.JoinRecord;
-import org.gbif.pipelines.io.avro.json.MetadataJsonRecord;
-import org.gbif.pipelines.io.avro.json.OccurrenceMapRecord;
-import org.gbif.pipelines.io.avro.json.ParentJsonRecord;
+import org.gbif.pipelines.io.avro.json.*;
 
 @Slf4j
 @Builder
@@ -133,7 +129,6 @@ public class ParentJsonConverter {
     builder.setId(verbatim.getId());
     mapIssues(builder);
 
-    mapDenormalisedEvent(builder);
     mapEventCoreRecord(builder);
     mapTemporalRecord(builder);
     mapLocationRecord(builder);
@@ -141,6 +136,8 @@ public class ParentJsonConverter {
     mapExtendedRecord(builder);
 
     mapMeasurementOrFactRecord(builder);
+
+    mapDenormalisedEvent(builder);
 
     return builder;
   }
@@ -169,14 +166,61 @@ public class ParentJsonConverter {
       List<String> eventTypes = new ArrayList<>();
       List<String> eventIDs = new ArrayList<>();
 
+      boolean hasCoordsInfo = builder.getDecimalLatitude() != null;
+      boolean hasCountryInfo = builder.getCountryCode() != null;
+      boolean hasStateInfo = builder.getStateProvince() != null;
+      boolean hasYearInfo = builder.getYear() != null;
+      boolean hasMonthInfo = builder.getMonth() != null;
+      boolean hasSamplingProtocol = builder.getSamplingProtocol() != null;
+
+      // extract location & temporal information from
       Arrays.stream(pathElements)
           .filter(x -> Strings.isNotBlank(x))
           .map(x -> x.split("\\$\\$\\$"))
           .forEach(
               elem -> {
-                if (elem != null && elem.length == 2) {
-                  eventIDs.add(elem[0]);
-                  eventTypes.add(elem[1]);
+                if (elem != null && elem.length == 8) {
+
+                  String eventID = elem[0];
+                  String eventType = elem[1];
+                  String countryCode = elem[2];
+                  String stateProvince = elem[3];
+                  String latitude = elem[4];
+                  String longitude = elem[5];
+                  String year = elem[6];
+                  String month = elem[7];
+//                  String samplingProtocol = elem[8];
+
+                  if (!hasYearInfo && year != null) {
+                    builder.setYear(Integer.parseInt(year));
+                  }
+                  if (!hasMonthInfo && month != null) {
+                    builder.setMonth(Integer.parseInt(month));
+                  }
+                  if (!hasCountryInfo && countryCode != null) {
+                    builder.setCountryCode(countryCode);
+                  }
+                  if (!hasStateInfo && stateProvince != null) {
+                    builder.setStateProvince(stateProvince);
+                  }
+//                  if (!hasSamplingProtocol && samplingProtocol != null){
+//                    List<String> samplingProtocols = new ArrayList<>();
+//                    samplingProtocols.add(samplingProtocol);
+//                    builder.setSamplingProtocol(samplingProtocols);
+//                  }
+
+                  if (!hasCoordsInfo && latitude != null && longitude != null) {
+                    Double lat = Double.parseDouble(latitude);
+                    Double lng = Double.parseDouble(longitude);
+                    builder.setDecimalLatitude(lat);
+                    builder.setDecimalLongitude(lng);
+                    builder.setCoordinates(Coordinates.newBuilder().setLat(lat).setLon(lng).build());
+                    builder.setScoordinates(latitude +"," + longitude);
+                    builder.setHasCoordinate(true);
+                  }
+
+                  eventIDs.add(eventID);
+                  eventTypes.add(eventType);
                 }
               });
 

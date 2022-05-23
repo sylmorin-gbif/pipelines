@@ -1,12 +1,6 @@
 package org.gbif.pipelines.core.interpreters.core;
 
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_ROUNDED;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COUNTRY_DERIVED_FROM_COORDINATES;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COUNTRY_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.GEODETIC_DATUM_ASSUMED_WGS84;
-import static org.gbif.api.vocabulary.OccurrenceIssue.PRESUMED_NEGATED_LONGITUDE;
-import static org.gbif.api.vocabulary.OccurrenceIssue.PRESUMED_SWAPPED_COORDINATE;
+import static org.gbif.api.vocabulary.OccurrenceIssue.*;
 import static org.gbif.pipelines.core.interpreters.core.LocationInterpreter.hasGeospatialIssues;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

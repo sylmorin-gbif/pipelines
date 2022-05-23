@@ -1,13 +1,6 @@
 package org.gbif.pipelines.core.interpreters.core;
 
-import static org.gbif.api.vocabulary.OccurrenceIssue.CONTINENT_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_OUT_OF_RANGE;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_PRECISION_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COORDINATE_UNCERTAINTY_METERS_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.COUNTRY_COORDINATE_MISMATCH;
-import static org.gbif.api.vocabulary.OccurrenceIssue.FOOTPRINT_SRS_INVALID;
-import static org.gbif.api.vocabulary.OccurrenceIssue.ZERO_COORDINATE;
+import static org.gbif.api.vocabulary.OccurrenceIssue.*;
 import static org.gbif.pipelines.core.utils.ModelUtils.addIssue;
 import static org.gbif.pipelines.core.utils.ModelUtils.extractNullAwareOptValue;
 import static org.gbif.pipelines.core.utils.ModelUtils.extractNullAwareValue;
@@ -38,11 +31,7 @@ import org.gbif.kvs.geocode.LatLng;
 import org.gbif.pipelines.core.parsers.SimpleTypeParser;
 import org.gbif.pipelines.core.parsers.VocabularyParser;
 import org.gbif.pipelines.core.parsers.common.ParsedField;
-import org.gbif.pipelines.core.parsers.location.parser.FootprintWKTParser;
-import org.gbif.pipelines.core.parsers.location.parser.GadmParser;
-import org.gbif.pipelines.core.parsers.location.parser.LocationParser;
-import org.gbif.pipelines.core.parsers.location.parser.ParsedLocation;
-import org.gbif.pipelines.core.parsers.location.parser.SpatialReferenceSystemParser;
+import org.gbif.pipelines.core.parsers.location.parser.*;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.LocationRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
