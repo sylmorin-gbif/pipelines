@@ -4,10 +4,10 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.graphx._
 import org.apache.spark.graphx.Edge
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame,  SaveMode, SparkSession}
-import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.functions.{coalesce, col, lit}
+import org.apache.spark.sql.types.{Metadata, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+
 import scala.util.hashing.MurmurHash3
 
 object DenormalisationPipeline {
@@ -76,21 +76,17 @@ object DenormalisationPipeline {
     System.out.println("select from join")
     val eventsDF = joined_df.select(
       col("event.id").as("id"),
-      col("event.eventType.concept").as("event_type"),
-      col("event.parentEventID").as("parent_event_id"),
-//      col("event.samplingProtocol").as("sampling_protocol"),
-      col("location.countryCode").as("country_code"),
-      col("location.stateProvince").as("state_province"),
-      col("location.decimalLatitude").as("latitude"),
-      col("location.decimalLongitude").as("longitude"),
-      col("temporal.year").as("year"),
-      col("temporal.month").as("month")
+      col("eventType.concept").as("event_type"),
+      col("parentEventID").as("parent_event_id"),
+      coalesce(col("decimalLatitude"), lit("0")).as("latitude"),
+      coalesce(col("decimalLongitude"), lit("0")).as("longitude"),
+      coalesce(col("year"), lit("0")).as("year")
     )
 
     // primary key, root, path - dataframe to graphx for vertices
     val verticiesDF = eventsDF.selectExpr("id",
-      "concat(id, '$$$', event_type, '$$$', country_code, '$$$', state_province, '$$$', Latitude, '$$$', longitude, '$$$', year, '$$$', month)",
-      "concat(id, '$$$', event_type, '$$$', country_code, '$$$', state_province, '$$$', Latitude, '$$$', longitude, '$$$', year, '$$$', month)"
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year)",
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year)"
     )
 
     // parent to child - dataframe to graphx for edges

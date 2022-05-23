@@ -113,7 +113,7 @@ public class ParentJsonTransform implements Serializable {
             AudubonRecord ar =
                 v.getOnly(audubonRecordTag, AudubonRecord.newBuilder().setId(k).build());
 
-            // Denormed events
+            // De-normed events
             DenormalisedEvent de =
                 v.getOnly(denormalisedEventTag, DenormalisedEvent.newBuilder().setId(k).build());
 
