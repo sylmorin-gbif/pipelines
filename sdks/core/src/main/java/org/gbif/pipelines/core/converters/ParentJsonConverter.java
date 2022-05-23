@@ -179,44 +179,35 @@ public class ParentJsonConverter {
           .map(x -> x.split("\\$\\$\\$"))
           .forEach(
               elem -> {
-                if (elem != null && elem.length == 8) {
+                if (elem != null && elem.length == 5) {
 
                   String eventID = elem[0];
                   String eventType = elem[1];
-                  String countryCode = elem[2];
-                  String stateProvince = elem[3];
-                  String latitude = elem[4];
-                  String longitude = elem[5];
-                  String year = elem[6];
-                  String month = elem[7];
-//                  String samplingProtocol = elem[8];
+                  String latitude = elem[2];
+                  String longitude = elem[3];
+                  String year = elem[4];
 
                   if (!hasYearInfo && year != null) {
-                    builder.setYear(Integer.parseInt(year));
+                    Integer yearParsed = Integer.parseInt(year);
+                    if (yearParsed != 0) {
+                      builder.setYear(Integer.parseInt(year));
+                    }
                   }
-                  if (!hasMonthInfo && month != null) {
-                    builder.setMonth(Integer.parseInt(month));
-                  }
-                  if (!hasCountryInfo && countryCode != null) {
-                    builder.setCountryCode(countryCode);
-                  }
-                  if (!hasStateInfo && stateProvince != null) {
-                    builder.setStateProvince(stateProvince);
-                  }
-//                  if (!hasSamplingProtocol && samplingProtocol != null){
-//                    List<String> samplingProtocols = new ArrayList<>();
-//                    samplingProtocols.add(samplingProtocol);
-//                    builder.setSamplingProtocol(samplingProtocols);
-//                  }
 
                   if (!hasCoordsInfo && latitude != null && longitude != null) {
-                    Double lat = Double.parseDouble(latitude);
-                    Double lng = Double.parseDouble(longitude);
-                    builder.setDecimalLatitude(lat);
-                    builder.setDecimalLongitude(lng);
-                    builder.setCoordinates(Coordinates.newBuilder().setLat(lat).setLon(lng).build());
-                    builder.setScoordinates(latitude +"," + longitude);
-                    builder.setHasCoordinate(true);
+                    Double decimalLatitude = Double.parseDouble(latitude);
+                    Double decimalLongitude = Double.parseDouble(longitude);
+                    if (decimalLatitude != 0 && decimalLongitude != 0) {
+                      builder
+                          .setDecimalLatitude(decimalLatitude)
+                          .setDecimalLongitude(decimalLongitude)
+                          // geo_point
+                          .setCoordinates(
+                              JsonConverter.convertCoordinates(decimalLongitude, decimalLatitude))
+                          // geo_shape
+                          .setScoordinates(
+                              JsonConverter.convertScoordinates(decimalLongitude, decimalLatitude));
+                    }
                   }
 
                   eventIDs.add(eventID);
