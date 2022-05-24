@@ -98,6 +98,7 @@ public class ParentJsonConverter {
     Double decimalLatitude = location.getDecimalLatitude();
     if (decimalLongitude != null && decimalLatitude != null) {
       builder
+          .setHasCoordinate(true)
           .setDecimalLatitude(decimalLatitude)
           .setDecimalLongitude(decimalLongitude)
           // geo_point
