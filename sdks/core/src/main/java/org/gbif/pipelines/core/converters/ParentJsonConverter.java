@@ -180,19 +180,37 @@ public class ParentJsonConverter {
           .map(x -> x.split("\\$\\$\\$"))
           .forEach(
               elem -> {
-                if (elem != null && elem.length == 5) {
+                if (elem != null && elem.length == 8) {
 
                   String eventID = elem[0];
                   String eventType = elem[1];
                   String latitude = elem[2];
                   String longitude = elem[3];
                   String year = elem[4];
+                  String month = elem[5];
+                  String stateProvince = elem[6];
+                  String countryCode = elem[7];
 
                   if (!hasYearInfo && year != null) {
                     Integer yearParsed = Integer.parseInt(year);
                     if (yearParsed != 0) {
                       builder.setYear(Integer.parseInt(year));
                     }
+                  }
+
+                  if (!hasMonthInfo && month != null) {
+                    Integer monthParsed = Integer.parseInt(month);
+                    if (monthParsed != 0) {
+                      builder.setMonth(Integer.parseInt(month));
+                    }
+                  }
+
+                  if (!hasCountryInfo && countryCode != null && !"0".equals(countryCode)) {
+                    builder.setCountryCode(countryCode);
+                  }
+
+                  if (!hasStateInfo && stateProvince != null && !"0".equals(stateProvince)) {
+                    builder.setStateProvince(stateProvince);
                   }
 
                   if (!hasCoordsInfo && latitude != null && longitude != null) {

@@ -5,10 +5,8 @@ import org.apache.spark.graphx._
 import org.apache.spark.graphx.Edge
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.{coalesce, col, lit}
-import org.apache.spark.sql.types.{Metadata, StructField, StructType}
+import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-
-import scala.util.hashing.MurmurHash3
 
 object DenormalisationPipeline {
 
@@ -80,13 +78,16 @@ object DenormalisationPipeline {
       col("parentEventID").as("parent_event_id"),
       coalesce(col("decimalLatitude"), lit("0")).as("latitude"),
       coalesce(col("decimalLongitude"), lit("0")).as("longitude"),
-      coalesce(col("year"), lit("0")).as("year")
+      coalesce(col("year"), lit("0")).as("year"),
+      coalesce(col("month"), lit("0")).as("month"),
+      coalesce(col("stateProvince"), lit("0")).as("state_province"),
+      coalesce(col("countryCode"), lit("0")).as("country_code")
     )
 
     // primary key, root, path - dataframe to graphx for vertices
     val verticiesDF = eventsDF.selectExpr("id",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year)",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year)"
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code)",
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code)"
     )
 
     // parent to child - dataframe to graphx for edges
@@ -138,7 +139,7 @@ object DenormalisationPipeline {
       .rdd
       .map { x => (x.get(0), x.get(1), x.get(2)) }
       .map { x =>
-        ( MurmurHash3.stringHash(x._1.toString).toLong,
+        ( ExtendedMurmurHash.hash(x._1.toString),
             (x._1, x._2, x._3.asInstanceOf[String])
         )
       }
@@ -149,8 +150,8 @@ object DenormalisationPipeline {
       .rdd
       .map { x => (x.get(0), x.get(1)) }
       .map { x => Edge(
-        MurmurHash3.stringHash(x._1.toString).toLong,  // parent event ID
-        MurmurHash3.stringHash(x._2.toString).toLong,  // event ID
+        ExtendedMurmurHash.hash(x._1.toString),  // parent event ID
+        ExtendedMurmurHash.hash(x._2.toString),  // event ID
         "topdown")
       }
 
@@ -243,4 +244,18 @@ object DenormalisationPipeline {
 
   // Receive values from all connected vertices
   def mergeMsg(msg1: (Long,Int,Any,List[String],Int,Int), msg2: (Long,Int, Any,List[String],Int,Int)): (Long,Int,Any,List[String],Int,Int) = msg2
+}
+
+object ExtendedMurmurHash {
+  val seed = 0xf7ca7fd2
+
+  def hash(u: String): Long = {
+    val a = scala.util.hashing.MurmurHash3.stringHash(u, seed)
+    val b = scala.util.hashing.MurmurHash3.stringHash(u.reverse.toString, seed)
+    // shift a 32 bits to the left, leaving 32 lower bits zeroed
+    // mask b with "1111...1" (32 bits)
+    // bitwise "OR" between both leaving a 64 bit hash of the string using Murmur32 on each portion
+    val c: Long = a.toLong << 32 | (b & 0xffffffffL)
+    c
+  }
 }
