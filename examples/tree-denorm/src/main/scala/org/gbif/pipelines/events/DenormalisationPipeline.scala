@@ -60,11 +60,14 @@ object DenormalisationPipeline {
     import spark.implicits._
 
     System.out.println("Load events")
-    val eventCoreDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro").as("event")
+    val eventCoreDF = spark.read.format("avro").
+      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro").as("event")
     System.out.println("Load location")
-    val locationDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/location/*.avro").as("location")
+    val locationDF = spark.read.format("avro").
+      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/location/*.avro").as("location")
     System.out.println("Load temporal")
-    val temporalDF = spark.read.format("avro").load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/temporal/*.avro").as("temporal")
+    val temporalDF = spark.read.format("avro").
+      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/temporal/*.avro").as("temporal")
 
     System.out.println("Join")
     val joined_df = eventCoreDF.
@@ -81,13 +84,14 @@ object DenormalisationPipeline {
       coalesce(col("year"), lit("0")).as("year"),
       coalesce(col("month"), lit("0")).as("month"),
       coalesce(col("stateProvince"), lit("0")).as("state_province"),
-      coalesce(col("countryCode"), lit("0")).as("country_code")
+      coalesce(col("countryCode"), lit("0")).as("country_code"),
+      coalesce(col("locationID"), lit("0")).as("location_id")
     )
 
     // primary key, root, path - dataframe to graphx for vertices
     val verticiesDF = eventsDF.selectExpr("id",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code)",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code)"
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code, '$$$', location_id)",
+      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code, '$$$', location_id)"
     )
 
     // parent to child - dataframe to graphx for edges
@@ -232,11 +236,9 @@ object DenormalisationPipeline {
 
       // Judge whether it is a leaf node or a node without child nodes.
       // It belongs to a leaf node and the root node does not count
-      if (sourceVertex._7 == 1) //is NOT leaf
-      {
+      if (sourceVertex._7 == 1){ //is NOT leaf
         Iterator((triplet.srcId, (sourceVertex._1,sourceVertex._2,sourceVertex._3, sourceVertex._4 ,0, 0 )))
-      }
-      else { // set new values
+      } else { // set new values
         Iterator((triplet.dstId, (sourceVertex._1, sourceVertex._2, sourceVertex._3, sourceVertex._4, 0, 1)))
       }
     }
