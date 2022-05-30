@@ -78,9 +78,14 @@ public class CoreInterpreter {
     consumer.accept(license);
   }
 
-  /** {@link DwcTerm#datasetID} interpretation. */
+  /** {@link DwcTerm#parentEventID} interpretation. */
   public static void interpretParentEventID(ExtendedRecord er, Consumer<String> consumer) {
     extractOptValue(er, DwcTerm.parentEventID).ifPresent(consumer);
+  }
+
+  /** {@link DwcTerm#locationID} interpretation. */
+  public static void interpretLocationID(ExtendedRecord er, Consumer<String> consumer) {
+    extractOptValue(er, DwcTerm.locationID).ifPresent(consumer);
   }
 
   /** {@link DwcTerm#datasetID} interpretation. */

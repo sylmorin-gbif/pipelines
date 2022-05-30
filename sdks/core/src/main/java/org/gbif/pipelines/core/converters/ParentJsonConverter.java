@@ -173,6 +173,7 @@ public class ParentJsonConverter {
       boolean hasYearInfo = builder.getYear() != null;
       boolean hasMonthInfo = builder.getMonth() != null;
       boolean hasSamplingProtocol = builder.getSamplingProtocol() != null;
+      boolean hasLocationID = builder.getLocationID() != null;
 
       // extract location & temporal information from
       Arrays.stream(pathElements)
@@ -180,7 +181,7 @@ public class ParentJsonConverter {
           .map(x -> x.split("\\$\\$\\$"))
           .forEach(
               elem -> {
-                if (elem != null && elem.length == 8) {
+                if (elem != null && elem.length == 9) {
 
                   String eventID = elem[0];
                   String eventType = elem[1];
@@ -190,6 +191,7 @@ public class ParentJsonConverter {
                   String month = elem[5];
                   String stateProvince = elem[6];
                   String countryCode = elem[7];
+                  String locationID = elem[8];
 
                   if (!hasYearInfo && year != null) {
                     Integer yearParsed = Integer.parseInt(year);
@@ -229,6 +231,10 @@ public class ParentJsonConverter {
                     }
                   }
 
+                  if (!hasLocationID & !"0".equals(locationID)) {
+                    builder.setLocationID(locationID);
+                  }
+
                   eventIDs.add(eventID);
                   eventTypes.add(eventType);
                 }
@@ -261,7 +267,7 @@ public class ParentJsonConverter {
     // License
     JsonConverter.convertLicense(eventCore.getLicense()).ifPresent(builder::setLicense);
 
-    // Multivalue fields
+    // Multi-value fields
     JsonConverter.convertToMultivalue(eventCore.getSamplingProtocol())
         .ifPresent(builder::setSamplingProtocolJoined);
   }
@@ -387,6 +393,7 @@ public class ParentJsonConverter {
     extractOptValue(verbatim, DwcTerm.institutionCode).ifPresent(builder::setInstitutionCode);
     extractOptValue(verbatim, DwcTerm.verbatimDepth).ifPresent(builder::setVerbatimDepth);
     extractOptValue(verbatim, DwcTerm.verbatimElevation).ifPresent(builder::setVerbatimElevation);
+    extractOptValue(verbatim, DwcTerm.locationID).ifPresent(builder::setLocationID);
   }
 
   private void mapMeasurementOrFactRecord(EventJsonRecord.Builder builder) {

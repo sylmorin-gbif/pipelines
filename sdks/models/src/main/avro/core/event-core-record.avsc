@@ -15,6 +15,7 @@
     {"name": "datasetID", "type": {"type" : "array", "items" : "string"}, "default" : [], "doc": "http://rs.tdwg.org/dwc/terms/datasetID"},
     {"name": "datasetName", "type": {"type" : "array", "items" : "string"}, "default" : [], "doc": "http://rs.tdwg.org/dwc/terms/datasetName"},
     {"name": "samplingProtocol", "type": {"type" : "array", "items" : "string"}, "default" : [], "doc": "http://rs.tdwg.org/dwc/terms/samplingProtocol"},
+    {"name": "locationID", "type": ["null","string"], "default" : null, "doc": "Pipelines identifier"},
     {"name": "issues", "type": "IssueRecord", "default":{}}
   ]
 }
