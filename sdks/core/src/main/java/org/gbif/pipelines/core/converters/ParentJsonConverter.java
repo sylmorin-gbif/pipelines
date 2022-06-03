@@ -7,7 +7,6 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.logging.log4j.util.Strings;
 import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.dwc.terms.TermFactory;
 import org.gbif.pipelines.core.utils.HashConverter;
@@ -161,9 +160,8 @@ public class ParentJsonConverter {
 
   private void mapDenormalisedEvent(EventJsonRecord.Builder builder) {
 
-    if (denormalisedEvent.getPath() != null) {
+    if (denormalisedEvent.getParents() != null & !denormalisedEvent.getParents().isEmpty()) {
 
-      String[] pathElements = denormalisedEvent.getPath().split("\\|\\|\\|");
       List<String> eventTypes = new ArrayList<>();
       List<String> eventIDs = new ArrayList<>();
 
@@ -172,75 +170,52 @@ public class ParentJsonConverter {
       boolean hasStateInfo = builder.getStateProvince() != null;
       boolean hasYearInfo = builder.getYear() != null;
       boolean hasMonthInfo = builder.getMonth() != null;
-      boolean hasSamplingProtocol = builder.getSamplingProtocol() != null;
       boolean hasLocationID = builder.getLocationID() != null;
 
       // extract location & temporal information from
-      Arrays.stream(pathElements)
-          .filter(x -> Strings.isNotBlank(x))
-          .map(x -> x.split("\\$\\$\\$"))
-          .forEach(
-              elem -> {
-                if (elem != null && elem.length == 9) {
+      denormalisedEvent.getParents().forEach(
+          parent -> {
+            if (!hasYearInfo && parent.getYear() != null) {
+              builder.setYear(parent.getYear());
+            }
 
-                  String eventID = elem[0];
-                  String eventType = elem[1];
-                  String latitude = elem[2];
-                  String longitude = elem[3];
-                  String year = elem[4];
-                  String month = elem[5];
-                  String stateProvince = elem[6];
-                  String countryCode = elem[7];
-                  String locationID = elem[8];
+            if (!hasMonthInfo && parent.getMonth() != null) {
+              builder.setMonth(parent.getMonth());
+            }
 
-                  if (!hasYearInfo && year != null) {
-                    Integer yearParsed = Integer.parseInt(year);
-                    if (yearParsed != 0) {
-                      builder.setYear(Integer.parseInt(year));
-                    }
-                  }
+            if (!hasCountryInfo && parent.getCountryCode() != null) {
+              builder.setCountryCode(parent.getCountryCode());
+            }
 
-                  if (!hasMonthInfo && month != null) {
-                    Integer monthParsed = Integer.parseInt(month);
-                    if (monthParsed != 0) {
-                      builder.setMonth(Integer.parseInt(month));
-                    }
-                  }
+            if (!hasStateInfo && parent.getStateProvince() != null) {
+              builder.setStateProvince(parent.getStateProvince());
+            }
 
-                  if (!hasCountryInfo && countryCode != null && !"0".equals(countryCode)) {
-                    builder.setCountryCode(countryCode);
-                  }
+            if (!hasCoordsInfo
+                && parent.getDecimalLatitude() != null
+                && parent.getDecimalLongitude() != null) {
+              builder
+                  .setHasCoordinate(true)
+                  .setDecimalLatitude(parent.getDecimalLatitude())
+                  .setDecimalLongitude(parent.getDecimalLongitude())
+                  // geo_point
+                  .setCoordinates(
+                      JsonConverter.convertCoordinates(
+                          parent.getDecimalLongitude(), parent.getDecimalLatitude()))
+                  // geo_shape
+                  .setScoordinates(
+                      JsonConverter.convertScoordinates(
+                          parent.getDecimalLongitude(), parent.getDecimalLatitude()));
+            }
 
-                  if (!hasStateInfo && stateProvince != null && !"0".equals(stateProvince)) {
-                    builder.setStateProvince(stateProvince);
-                  }
+            if (!hasLocationID && parent.getLocationID() != null) {
+              builder.setLocationID(parent.getLocationID());
+            }
 
-                  if (!hasCoordsInfo && latitude != null && longitude != null) {
-                    Double decimalLatitude = Double.parseDouble(latitude);
-                    Double decimalLongitude = Double.parseDouble(longitude);
-                    if (decimalLatitude != 0 && decimalLongitude != 0) {
-                      builder
-                          .setDecimalLatitude(decimalLatitude)
-                          .setDecimalLongitude(decimalLongitude)
-                          // geo_point
-                          .setCoordinates(
-                              JsonConverter.convertCoordinates(decimalLongitude, decimalLatitude))
-                          // geo_shape
-                          .setScoordinates(
-                              JsonConverter.convertScoordinates(decimalLongitude, decimalLatitude));
-                    }
-                  }
+            eventIDs.add(parent.getEventID());
+            eventTypes.add(parent.getEventType());
+          });
 
-                  if (!hasLocationID & !"0".equals(locationID)) {
-                    builder.setLocationID(locationID);
-                  }
-
-                  eventIDs.add(eventID);
-                  eventTypes.add(eventType);
-                }
-              });
-
-      //   || RLS-Survey || 912347474-SiteVisit || 912347474-0-Sample
       builder.setEventHierarchy(eventIDs);
       builder.setEventTypeHierarchy(eventTypes);
       builder.setEventHierarchyJoined(String.join(" / ", eventIDs));
