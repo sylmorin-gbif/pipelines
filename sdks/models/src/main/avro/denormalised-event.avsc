@@ -1,9 +1,27 @@
-{
-  "name": "DenormalisedEvent",
-  "namespace": "org.gbif.pipelines.io.avro",
-  "type": "record",
-  "fields": [
-    {"name": "id", "type": ["null", "string"], "default" : null},
-    {"name": "path", "type": ["null", "string"], "default" : null }
-  ]
-}
+[
+  {
+    "name": "DenormalisedParentEvent",
+    "namespace": "org.gbif.pipelines.io.avro",
+    "type": "record",
+    "fields": [
+      {"name": "eventID", "type": ["null", "string"], "default" : null},
+      {"name": "eventType", "type": ["null", "string"], "default" : null},
+      {"name": "locationID", "type": ["null", "string"], "default" : null},
+      {"name": "decimalLatitude", "type": ["null", "double"], "default" : null},
+      {"name": "decimalLongitude", "type": ["null", "double"], "default" : null},
+      {"name": "stateProvince", "type": ["null", "string"], "default" : null},
+      {"name": "countryCode", "type": ["null", "string"], "default" : null},
+      {"name": "year", "type": ["null", "int"], "default" : null},
+      {"name": "month", "type": ["null", "int"], "default" : null}
+    ]
+  },
+  {
+    "name": "DenormalisedEvent",
+    "namespace": "org.gbif.pipelines.io.avro",
+    "type": "record",
+    "fields": [
+      {"name": "id", "type": ["null", "string"], "default" : null},
+      {"name": "parents", "type" : {"type" : "array", "items" : "DenormalisedParentEvent"}, "default": []}
+    ]
+  }
+]

@@ -1,14 +1,42 @@
 package org.gbif.pipelines.events
-import org.apache.avro.Schema
 import org.apache.log4j.{Level, Logger}
+import org.apache.logging.log4j.util.Strings
 import org.apache.spark.graphx._
 import org.apache.spark.graphx.Edge
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.avro.SchemaConverters
 import org.apache.spark.sql.functions.{coalesce, col, lit}
-import org.apache.spark.sql.types.{StructField, StructType}
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.types.{StructType}
+import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession}
+import org.gbif.pipelines.io.avro.{DenormalisedEvent}
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 
+/**
+ * Pipeline that uses spark's graphx API to construct the parent hierarchy
+ * for events in a dataset.
+ *
+ * This pipeline produces an AVRO export that can then be used in indexing
+ * with the outputs of the interpretation pipeline to populate geospatial
+ * and temporal fields that are otherwise missing from events but are present on parent events.
+ */
 object DenormalisationPipeline {
+
+  val KEY_FIELDS = Array(
+    "id",
+    "event_type",
+    "location_id",
+    "latitude",
+    "longitude",
+    "state_province",
+    "country_code",
+    "year",
+    "month"
+  )
+
+  val FIELD_DELIM = "$$$"
+  val FIELD_DELIM_ESCAPED = "\\$\\$\\$"
+  val PATH_DELIM = "|||"
+  val PATH_DELIM_ESCAPED = "\\|\\|\\|"
 
   // Test with some sample data
   def main(args: Array[String]): Unit = {
@@ -29,16 +57,7 @@ object DenormalisationPipeline {
       false
     }
 
-    val schemaAvro = new Schema.Parser().parse(
-        """{
-          "name": "DenormalisedEvent",
-          "namespace": "org.gbif.pipelines.io.avro",
-          "type": "record",
-          "fields": [
-            {"name": "id", "type": ["null", "string"], "default" : null},
-            {"name": "path", "type": ["null", "string"], "default" : null }
-          ]
-         }""")
+    val schemaAvro = DenormalisedEvent.getClassSchema.toString(true)
 
     // Mask log
     Logger.getLogger("org.apache.spark").setLevel(Level.WARN)
@@ -62,9 +81,11 @@ object DenormalisationPipeline {
     System.out.println("Load events")
     val eventCoreDF = spark.read.format("avro").
       load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro").as("event")
+
     System.out.println("Load location")
     val locationDF = spark.read.format("avro").
       load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/location/*.avro").as("location")
+
     System.out.println("Load temporal")
     val temporalDF = spark.read.format("avro").
       load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/temporal/*.avro").as("temporal")
@@ -79,55 +100,73 @@ object DenormalisationPipeline {
       col("event.id").as("id"),
       col("eventType.concept").as("event_type"),
       col("parentEventID").as("parent_event_id"),
+      coalesce(col("locationID"), lit("0")).as("location_id"),
       coalesce(col("decimalLatitude"), lit("0")).as("latitude"),
       coalesce(col("decimalLongitude"), lit("0")).as("longitude"),
       coalesce(col("year"), lit("0")).as("year"),
       coalesce(col("month"), lit("0")).as("month"),
       coalesce(col("stateProvince"), lit("0")).as("state_province"),
-      coalesce(col("countryCode"), lit("0")).as("country_code"),
-      coalesce(col("locationID"), lit("0")).as("location_id")
+      coalesce(col("countryCode"), lit("0")).as("country_code")
     )
 
     // primary key, root, path - dataframe to graphx for vertices
-    val verticiesDF = eventsDF.selectExpr("id",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code, '$$$', location_id)",
-      "concat(id, '$$$', event_type, '$$$', latitude, '$$$', longitude, '$$$', year, '$$$', month, '$$$', state_province, '$$$', country_code, '$$$', location_id)"
+    val verticesDF = eventsDF.selectExpr("id",
+      s"concat(${String.join(s", '${FIELD_DELIM}', ", KEY_FIELDS:_*)})",
+      s"concat(${String.join(s", '${FIELD_DELIM}', ", KEY_FIELDS:_*)})"
     )
 
     // parent to child - dataframe to graphx for edges
     val edgesDF = eventsDF.selectExpr("parent_event_id","id").filter("parent_event_id is not null")
 
     // call the function
-    val hierarchyDF = calcTopLevelHierarchy(verticiesDF, edgesDF)
+    val hierarchyDF = calcTopLevelHierarchy(verticesDF, edgesDF)
       .map {
         case (pk, (level, root, path, iscyclic, isleaf)) =>
           (pk.asInstanceOf[String], level, root.asInstanceOf[String], path, iscyclic, isleaf)
       }
       .toDF("id_pk", "level", "root", "path", "iscyclic", "isleaf").cache()
 
+    import spark.implicits._
+
     // extend original table with new columns
     val eventHierarchy = hierarchyDF
       .join(eventsDF, eventsDF.col("id") === hierarchyDF.col("id_pk"))
       .selectExpr("id", "path")
       .filter("id is not NULL")
-      .filter("path is not NULL").toDF()
+      .filter("path is not NULL")
 
-    // get schema
-    val schema = eventHierarchy.schema
-    val newSchema = StructType(schema.map {
-      case StructField( c, t, _, m) if c.equals("id") || c.equals("path") => StructField( c, t, nullable = false, m)
-      case y: StructField => y
-    })
+    implicit val mapEncoder = org.apache.spark.sql.Encoders.kryo[DenormalisedEvent]
+    val sqlType = SchemaConverters.toSqlType(DenormalisedEvent.getClassSchema)
+    val rowRDD = eventHierarchy.rdd.map(row => genericRecordToRow(row, sqlType.dataType.asInstanceOf[StructType]))
+    val df = spark.sqlContext.createDataFrame(rowRDD , sqlType.dataType.asInstanceOf[StructType])
 
-    // apply new schema
-    eventHierarchy.sqlContext.createDataFrame( eventHierarchy.rdd, newSchema )
-
-    // print
-    eventHierarchy.write
+    df.write
       .mode(SaveMode.Overwrite)
       .format("avro")
       .options(Map("avroSchema" -> schemaAvro.toString))
       .save(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_hierarchy/")
+  }
+
+  def genericRecordToRow(row:Row, sqlType:StructType): Row = {
+      val eventID = row.getString(0)
+      val path = row.getString(1)
+      val pathElements = path.split(PATH_DELIM_ESCAPED).filter(pathElement => Strings.isNotBlank(pathElement))
+      val parents:Array[Row] = pathElements.map(pathElement => {
+        val elem = pathElement.split(FIELD_DELIM_ESCAPED)
+        // this needs to match the order of the AVRO schema
+        Row(
+          elem(0), // eventID
+          elem(1), // eventType
+          if (elem(2) != null && elem(2) != "0") elem(2) else null, // locationID
+          if (elem(3) != null && elem(3) != "0") elem(3).toDouble else null, // lat
+          if (elem(4) != null && elem(4) != "0") elem(4).toDouble else null,  // lon
+          if (elem(5) != null && elem(5) != "0") elem(5) else null, // stateProvince
+          if (elem(6) != null && elem(6) != "0") elem(6) else null, // countryCode
+          if (elem(7) != null && elem(7) != "0") elem(7).toInt else null,   // year
+          if (elem(8) != null && elem(8) != "0") elem(8).toInt else null    // month
+        )
+    }).toArray
+    new GenericRowWithSchema(Array(eventID, parents), sqlType)
   }
 
   // The code below demonstrates use of Graphx Pregel API - Scala 2.11+
@@ -162,8 +201,6 @@ object DenormalisationPipeline {
     // create graph
     val graph = Graph(verticesRDD, EdgesRDD).cache()
 
-    val pathSeparator = """|||"""
-
     // add more dummy attributes to the vertices - id, level, root, path, isCyclic, existing value of current vertex to build path, isleaf, pk
     val initialGraph = graph.mapVertices((id, vertex) => {
       (
@@ -191,7 +228,7 @@ object DenormalisationPipeline {
     // build the path from the list
     val hierarchyOutRDD = hierarchyRDD.vertices.map {
       case (id, v) => {
-        (v._8, (v._2, v._3, pathSeparator + v._4.reverse.mkString(pathSeparator), v._5, v._7 ))
+        (v._8, (v._2, v._3, PATH_DELIM + v._4.reverse.mkString(PATH_DELIM), v._5, v._7 ))
       }
     }
 
