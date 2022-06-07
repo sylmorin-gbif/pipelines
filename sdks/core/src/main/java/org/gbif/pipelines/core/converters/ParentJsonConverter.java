@@ -173,48 +173,50 @@ public class ParentJsonConverter {
       boolean hasLocationID = builder.getLocationID() != null;
 
       // extract location & temporal information from
-      denormalisedEvent.getParents().forEach(
-          parent -> {
-            if (!hasYearInfo && parent.getYear() != null) {
-              builder.setYear(parent.getYear());
-            }
+      denormalisedEvent
+          .getParents()
+          .forEach(
+              parent -> {
+                if (!hasYearInfo && parent.getYear() != null) {
+                  builder.setYear(parent.getYear());
+                }
 
-            if (!hasMonthInfo && parent.getMonth() != null) {
-              builder.setMonth(parent.getMonth());
-            }
+                if (!hasMonthInfo && parent.getMonth() != null) {
+                  builder.setMonth(parent.getMonth());
+                }
 
-            if (!hasCountryInfo && parent.getCountryCode() != null) {
-              builder.setCountryCode(parent.getCountryCode());
-            }
+                if (!hasCountryInfo && parent.getCountryCode() != null) {
+                  builder.setCountryCode(parent.getCountryCode());
+                }
 
-            if (!hasStateInfo && parent.getStateProvince() != null) {
-              builder.setStateProvince(parent.getStateProvince());
-            }
+                if (!hasStateInfo && parent.getStateProvince() != null) {
+                  builder.setStateProvince(parent.getStateProvince());
+                }
 
-            if (!hasCoordsInfo
-                && parent.getDecimalLatitude() != null
-                && parent.getDecimalLongitude() != null) {
-              builder
-                  .setHasCoordinate(true)
-                  .setDecimalLatitude(parent.getDecimalLatitude())
-                  .setDecimalLongitude(parent.getDecimalLongitude())
-                  // geo_point
-                  .setCoordinates(
-                      JsonConverter.convertCoordinates(
-                          parent.getDecimalLongitude(), parent.getDecimalLatitude()))
-                  // geo_shape
-                  .setScoordinates(
-                      JsonConverter.convertScoordinates(
-                          parent.getDecimalLongitude(), parent.getDecimalLatitude()));
-            }
+                if (!hasCoordsInfo
+                    && parent.getDecimalLatitude() != null
+                    && parent.getDecimalLongitude() != null) {
+                  builder
+                      .setHasCoordinate(true)
+                      .setDecimalLatitude(parent.getDecimalLatitude())
+                      .setDecimalLongitude(parent.getDecimalLongitude())
+                      // geo_point
+                      .setCoordinates(
+                          JsonConverter.convertCoordinates(
+                              parent.getDecimalLongitude(), parent.getDecimalLatitude()))
+                      // geo_shape
+                      .setScoordinates(
+                          JsonConverter.convertScoordinates(
+                              parent.getDecimalLongitude(), parent.getDecimalLatitude()));
+                }
 
-            if (!hasLocationID && parent.getLocationID() != null) {
-              builder.setLocationID(parent.getLocationID());
-            }
+                if (!hasLocationID && parent.getLocationID() != null) {
+                  builder.setLocationID(parent.getLocationID());
+                }
 
-            eventIDs.add(parent.getEventID());
-            eventTypes.add(parent.getEventType());
-          });
+                eventIDs.add(parent.getEventID());
+                eventTypes.add(parent.getEventType());
+              });
 
       builder.setEventHierarchy(eventIDs);
       builder.setEventTypeHierarchy(eventTypes);

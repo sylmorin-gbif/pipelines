@@ -96,7 +96,7 @@ object DenormalisationPipeline {
       join(temporalDF, col("event.id") === col("temporal.id"), "inner")
 
     System.out.println("select from join")
-    val eventsDF = joined_df.select(
+    val eventsDF = joined_df.filter("event.id is NOT null").select(
       col("event.id").as("id"),
       col("eventType.concept").as("event_type"),
       col("parentEventID").as("parent_event_id"),
@@ -154,18 +154,22 @@ object DenormalisationPipeline {
       val parents:Array[Row] = pathElements.map(pathElement => {
         val elem = pathElement.split(FIELD_DELIM_ESCAPED)
         // this needs to match the order of the AVRO schema
-        Row(
-          elem(0), // eventID
-          elem(1), // eventType
-          if (elem(2) != null && elem(2) != "0") elem(2) else null, // locationID
-          if (elem(3) != null && elem(3) != "0") elem(3).toDouble else null, // lat
-          if (elem(4) != null && elem(4) != "0") elem(4).toDouble else null,  // lon
-          if (elem(5) != null && elem(5) != "0") elem(5) else null, // stateProvince
-          if (elem(6) != null && elem(6) != "0") elem(6) else null, // countryCode
-          if (elem(7) != null && elem(7) != "0") elem(7).toInt else null,   // year
-          if (elem(8) != null && elem(8) != "0") elem(8).toInt else null    // month
-        )
-    }).toArray
+        if (elem !=null && elem.length ==9){
+          Row(
+            elem(0), // eventID
+            elem(1), // eventType
+            if (elem(2) != null && elem(2) != "0") elem(2) else null, // locationID
+            if (elem(3) != null && elem(3) != "0") elem(3).toDouble else null, // lat
+            if (elem(4) != null && elem(4) != "0") elem(4).toDouble else null,  // lon
+            if (elem(5) != null && elem(5) != "0") elem(5) else null, // stateProvince
+            if (elem(6) != null && elem(6) != "0") elem(6) else null, // countryCode
+            if (elem(7) != null && elem(7) != "0") elem(7).toInt else null,   // year
+            if (elem(8) != null && elem(8) != "0") elem(8).toInt else null    // month
+          )
+        } else {
+          null
+        }
+    }).filter(_ != null).toArray
     new GenericRowWithSchema(Array(eventID, parents), sqlType)
   }
 
@@ -203,15 +207,19 @@ object DenormalisationPipeline {
 
     // add more dummy attributes to the vertices - id, level, root, path, isCyclic, existing value of current vertex to build path, isleaf, pk
     val initialGraph = graph.mapVertices((id, vertex) => {
-      (
-        id,
-        0,
-        vertex._2,
-        List(vertex._3),
-        0,
-        vertex._3,
-        1,
-        vertex._1)
+      if (vertex != null){
+        (
+          id,
+          0,
+          vertex._2,
+          List(vertex._3),
+          0,
+          vertex._3,
+          1,
+          vertex._1)
+      } else {
+        null
+      }
     })
 
     // Initialization message
@@ -228,9 +236,13 @@ object DenormalisationPipeline {
     // build the path from the list
     val hierarchyOutRDD = hierarchyRDD.vertices.map {
       case (id, v) => {
-        (v._8, (v._2, v._3, PATH_DELIM + v._4.reverse.mkString(PATH_DELIM), v._5, v._7 ))
+        if (v != null) {
+          (v._8, (v._2, v._3, PATH_DELIM + v._4.reverse.mkString(PATH_DELIM), v._5, v._7))
+        } else {
+          null
+        }
       }
-    }
+    }.filter(_ != null)
 
     hierarchyOutRDD
   }
@@ -239,6 +251,8 @@ object DenormalisationPipeline {
   def setMsg(vertexId: VertexId, value: (Long,Int,Any,List[String], Int,String,Int,Any),
              message: (Long,Int, Any,List[String],Int,Int)): (Long,Int, Any,List[String],Int,String,Int,Any) = {
 
+    if (value == null)
+      return null
 
     if (message._2 < 1) { //superstep 0 - initialize
       (value._1,value._2+1,value._3,value._4,value._5,value._6,value._7,value._8)
@@ -259,6 +273,9 @@ object DenormalisationPipeline {
 
     val sourceVertex = triplet.srcAttr
     val destinationVertex = triplet.dstAttr
+
+    if (sourceVertex == null || destinationVertex == null)
+      return Iterator.empty
 
     // Check whether it is a dead ring, that is, a is the leader of b and b is the leader of A
     // check for icyclic
