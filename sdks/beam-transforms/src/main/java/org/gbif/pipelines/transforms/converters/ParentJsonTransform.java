@@ -1,9 +1,8 @@
 package org.gbif.pipelines.transforms.converters;
 
-import static org.gbif.pipelines.common.PipelinesVariables.Metrics.AVRO_TO_JSON_COUNT;
+import static org.gbif.pipelines.common.PipelinesVariables.Metrics.EVENTS_AVRO_TO_JSON_COUNT;
 
 import java.io.Serializable;
-import java.util.List;
 import lombok.Builder;
 import lombok.NonNull;
 import org.apache.beam.sdk.metrics.Counter;
@@ -18,6 +17,7 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.gbif.pipelines.core.converters.MultimediaConverter;
 import org.gbif.pipelines.core.converters.ParentJsonConverter;
 import org.gbif.pipelines.io.avro.*;
+import org.gbif.pipelines.io.avro.json.DerivedMetadataRecord;
 
 /**
  * Beam level transformation for the ES output json. The transformation consumes objects, which
@@ -69,16 +69,15 @@ public class ParentJsonTransform implements Serializable {
   @NonNull private final TupleTag<IdentifierRecord> identifierRecordTag;
   @NonNull private final TupleTag<TemporalRecord> temporalRecordTag;
   @NonNull private final TupleTag<LocationRecord> locationRecordTag;
+  private final TupleTag<TaxonRecord> taxonRecordTag;
   // Extension
   @NonNull private final TupleTag<MultimediaRecord> multimediaRecordTag;
   @NonNull private final TupleTag<ImageRecord> imageRecordTag;
   @NonNull private final TupleTag<AudubonRecord> audubonRecordTag;
-
-  private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
-
-  private final TupleTag<DenormalisedEvent> denormalisedEventTag;
-
   @NonNull private final PCollectionView<MetadataRecord> metadataView;
+  @NonNull private final TupleTag<DerivedMetadataRecord> derivedMetadataRecordTag;
+  @NonNull private final TupleTag<MeasurementOrFactRecord> measurementOrFactRecordTag;
+  private final TupleTag<DenormalisedEvent> denormalisedEventTag;
 
   public SingleOutput<KV<String, CoGbkResult>, String> converter() {
 
@@ -86,7 +85,7 @@ public class ParentJsonTransform implements Serializable {
         new DoFn<KV<String, CoGbkResult>, String>() {
 
           private final Counter counter =
-              Metrics.counter(ParentJsonTransform.class, AVRO_TO_JSON_COUNT);
+              Metrics.counter(ParentJsonTransform.class, EVENTS_AVRO_TO_JSON_COUNT);
 
           @ProcessElement
           public void processElement(ProcessContext c) {
@@ -106,6 +105,9 @@ public class ParentJsonTransform implements Serializable {
             LocationRecord lr =
                 v.getOnly(locationRecordTag, LocationRecord.newBuilder().setId(k).build());
 
+            //            ALATaxonRecord txr = v.getOnly(taxonRecordTag,
+            // TaxonRecord.newBuilder().setId(k).build());
+
             // Extension
             MultimediaRecord mr =
                 v.getOnly(multimediaRecordTag, MultimediaRecord.newBuilder().setId(k).build());
@@ -117,15 +119,21 @@ public class ParentJsonTransform implements Serializable {
             DenormalisedEvent de =
                 v.getOnly(denormalisedEventTag, DenormalisedEvent.newBuilder().setId(k).build());
 
-            MeasurementOrFactRecord mfr =
+            MeasurementOrFactRecord mofr =
                 v.getOnly(
                     measurementOrFactRecordTag,
                     MeasurementOrFactRecord.newBuilder().setId(k).build());
 
             MultimediaRecord mmr = MultimediaConverter.merge(mr, imr, ar);
 
+            // Derived metadata
+            //            DerivedMetadataRecord dmr =
+            //                v.getOnly(
+            //                    derivedMetadataRecordTag,
+            // DerivedMetadataRecord.newBuilder().setId(k).build());
+
             // Convert and
-            List<String> jsons =
+            String json =
                 ParentJsonConverter.builder()
                     .metadata(mdr)
                     .eventCore(ecr)
@@ -134,16 +142,15 @@ public class ParentJsonTransform implements Serializable {
                     .location(lr)
                     .multimedia(mmr)
                     .verbatim(er)
-                    .measurementOrFact(mfr)
+                    //                    .taxon(txr)
+                    .measurementOrFact(mofr)
                     .denormalisedEvent(de)
+                    //                    .derivedMetadata(dmr)
                     .build()
-                    .toJsons();
+                    .toJson();
 
-            jsons.forEach(
-                json -> {
-                  c.output(json);
-                  counter.inc();
-                });
+            c.output(json);
+            counter.inc();
           }
         };
 

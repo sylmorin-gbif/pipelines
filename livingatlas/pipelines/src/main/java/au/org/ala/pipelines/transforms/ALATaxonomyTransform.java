@@ -71,10 +71,20 @@ public class ALATaxonomyTransform extends Transform<ExtendedRecord, ALATaxonReco
     this.dataResourceStoreSupplier = dataResourceStoreSupplier;
   }
 
-  /** Maps {@link ALATaxonRecord} to key value, where key is {@link TaxonRecord#getId} */
-  public MapElements<ALATaxonRecord, KV<String, ALATaxonRecord>> toKv() {
+  /** Maps {@link TaxonRecord} to key value, where key is {@link TaxonRecord#getId} */
+  public MapElements<ALATaxonRecord, KV<String, ALATaxonRecord>> asKv(boolean useParent) {
     return MapElements.into(new TypeDescriptor<KV<String, ALATaxonRecord>>() {})
-        .via((ALATaxonRecord tr) -> KV.of(tr.getId(), tr));
+        .via((ALATaxonRecord tr) -> KV.of(useParent ? tr.getId() : tr.getId(), tr));
+  }
+
+  /** Maps {@link TaxonRecord} to key value, where key is {@link TaxonRecord#getId} */
+  public MapElements<ALATaxonRecord, KV<String, ALATaxonRecord>> toKv() {
+    return asKv(false);
+  }
+
+  /** Maps {@link TaxonRecord} to key value, where key is {@link TaxonRecord#getParentId} */
+  public MapElements<ALATaxonRecord, KV<String, ALATaxonRecord>> toParentKv() {
+    return asKv(true);
   }
 
   public ALATaxonomyTransform counterFn(SerializableConsumer<String> counterFn) {
@@ -107,35 +117,7 @@ public class ALATaxonomyTransform extends Transform<ExtendedRecord, ALATaxonReco
 
   /** Beam @Teardown closes initialized resources */
   @Teardown
-  public void tearDown() {
-    // This section if uncommented cause CacheClosedExceptions
-    // to be thrown by the ALADefaultValuesTransform due to its use
-    // of the dataResourceStore
-
-    //    if (Objects.nonNull(this.dataResourceStore)) {
-    //      try {
-    //        log.info("Close NameUsageMatchKvStore");
-    //        this.dataResourceStore.close();
-    //      } catch (IOException ex) {
-    //        log.error("Error closing KV Store", ex);
-    //      }
-    //    }
-    //    if (Objects.nonNull(this.kingdomMatchStore)) {
-    //      try {
-    //        log.info("Close NameCheckKvStore");
-    //        this.kingdomCheckStore.close();
-    //      } catch (IOException ex) {
-    //        log.error("Error closing KV Store", ex);
-    //      }
-    //    if (Objects.nonNull(this.nameMatchStore)) {
-    //      try {
-    //        log.info("Close NameUsageMatchKvStore");
-    //        this.nameMatchStore.close();
-    //      } catch (IOException ex) {
-    //        log.error("Error closing KV Store", ex);
-    //      }
-    //    }
-  }
+  public void tearDown() {}
 
   @Override
   public Optional<ALATaxonRecord> convert(ExtendedRecord source) {

@@ -71,6 +71,8 @@ export-latlng:
   inputPath: hdfs://localhost:9000/pipelines-data
 uuid:
   inputPath: hdfs://localhost:9000/pipelines-data
+sensitive:
+  inputPath: hdfs://localhost:9000/pipelines-data
 validation-report:
   inputPath: hdfs://localhost:9000/pipelines-data
   checkSolr: false
@@ -78,7 +80,13 @@ sample-avro:
   inputPath: hdfs://localhost:9000/pipelines-data
 index:
   inputPath: hdfs://localhost:9000/pipelines-data
-  zkHost: localhost:9983
+  targetPath: hdfs://localhost:9000/pipelines-data
+  allDatasetsInputPath: hdfs://localhost:9000/pipelines-all-datasets
+solr:
+  inputPath: hdfs://localhost:9000/pipelines-data
+  targetPath: hdfs://localhost:9000/pipelines-data
+  allDatasetsInputPath: hdfs://localhost:9000/pipelines-all-datasets
+  zkHost: localhost:9973
 outlier:
   inputPath: hdfs://localhost:9000/pipelines-data
   targetPath: hdfs://localhost:9000/pipelines-outlier

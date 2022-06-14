@@ -22,9 +22,31 @@ import org.gbif.api.vocabulary.License;
 import org.gbif.api.vocabulary.OccurrenceIssue;
 import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.core.converters.ParentJsonConverter;
-import org.gbif.pipelines.io.avro.*;
+import org.gbif.pipelines.io.avro.AudubonRecord;
+import org.gbif.pipelines.io.avro.EventCoreRecord;
+import org.gbif.pipelines.io.avro.EventDate;
+import org.gbif.pipelines.io.avro.ExtendedRecord;
+import org.gbif.pipelines.io.avro.GadmFeatures;
+import org.gbif.pipelines.io.avro.IdentifierRecord;
+import org.gbif.pipelines.io.avro.ImageRecord;
+import org.gbif.pipelines.io.avro.LocationRecord;
+import org.gbif.pipelines.io.avro.MachineTag;
+import org.gbif.pipelines.io.avro.MeasurementOrFact;
+import org.gbif.pipelines.io.avro.MeasurementOrFactRecord;
+import org.gbif.pipelines.io.avro.MediaType;
+import org.gbif.pipelines.io.avro.MetadataRecord;
+import org.gbif.pipelines.io.avro.Multimedia;
+import org.gbif.pipelines.io.avro.MultimediaRecord;
+import org.gbif.pipelines.io.avro.RankedName;
+import org.gbif.pipelines.io.avro.TaxonRecord;
+import org.gbif.pipelines.io.avro.TemporalRecord;
+import org.gbif.pipelines.io.avro.json.DerivedMetadataRecord;
+import org.gbif.pipelines.transforms.core.ConvexHullFn;
+import org.gbif.pipelines.transforms.core.DerivedMetadataTransform;
 import org.gbif.pipelines.transforms.core.EventCoreTransform;
 import org.gbif.pipelines.transforms.core.LocationTransform;
+import org.gbif.pipelines.transforms.core.TaxonomyTransform;
+import org.gbif.pipelines.transforms.core.TemporalCoverageFn;
 import org.gbif.pipelines.transforms.core.TemporalTransform;
 import org.gbif.pipelines.transforms.core.VerbatimTransform;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
@@ -176,6 +198,13 @@ public class ParentJsonTransformTest {
             .build();
     lr.getIssues().getIssueList().add(OccurrenceIssue.BASIS_OF_RECORD_INVALID.name());
 
+    TaxonRecord tr =
+        TaxonRecord.newBuilder()
+            .setId("777")
+            .setAcceptedUsage(RankedName.newBuilder().setName("name").build())
+            .setSynonym(true)
+            .build();
+
     // State
     Multimedia stillImage = new Multimedia();
     stillImage.setType(MediaType.StillImage.name());
@@ -217,12 +246,26 @@ public class ParentJsonTransformTest {
             .setMultimediaItems(Arrays.asList(stillImage, movingImage))
             .build();
 
+    DerivedMetadataRecord dmr = DerivedMetadataRecord.newBuilder().setId("777").build();
+
+    MeasurementOrFactRecord mofr =
+        MeasurementOrFactRecord.newBuilder()
+            .setId("777")
+            .setMeasurementOrFactItems(
+                Collections.singletonList(
+                    MeasurementOrFact.newBuilder()
+                        .setMeasurementType("sampling")
+                        .setMeasurementMethod("sample")
+                        .build()))
+            .build();
+
     // Core
     EventCoreTransform eventCoreTransform = EventCoreTransform.builder().create();
     IdentifierTransform identifierTransform = IdentifierTransform.builder().create();
     VerbatimTransform verbatimTransform = VerbatimTransform.create();
     TemporalTransform temporalTransform = TemporalTransform.builder().create();
     LocationTransform locationTransform = LocationTransform.builder().create();
+    TaxonomyTransform taxonomyTransform = TaxonomyTransform.builder().create();
 
     // Extension
     MultimediaTransform multimediaTransform = MultimediaTransform.builder().create();
@@ -230,6 +273,14 @@ public class ParentJsonTransformTest {
     ImageTransform imageTransform = ImageTransform.builder().create();
     MeasurementOrFactTransform measurementOrFactTransform =
         MeasurementOrFactTransform.builder().create();
+
+    // Derived metadata
+    DerivedMetadataTransform derivedMetadataTransform =
+        DerivedMetadataTransform.builder()
+            .extendedRecordTag(verbatimTransform.getTag())
+            .convexHullTag(ConvexHullFn.tag())
+            .temporalCoverageTag(TemporalCoverageFn.tag())
+            .build();
 
     // When
     PCollectionView<MetadataRecord> metadataView =
@@ -255,6 +306,10 @@ public class ParentJsonTransformTest {
         p.apply("Read Location", Create.of(lr))
             .apply("Map Location to KV", locationTransform.toKv());
 
+    PCollection<KV<String, TaxonRecord>> taxonCollection =
+        p.apply("Read Taxonomy", Create.of(tr))
+            .apply("Map Taxonomy to KV", taxonomyTransform.toKv());
+
     PCollection<KV<String, MultimediaRecord>> multimediaCollection =
         p.apply("Read Multimedia", Create.of(mmr))
             .apply("Map Multimedia to KV", multimediaTransform.toKv());
@@ -267,11 +322,13 @@ public class ParentJsonTransformTest {
         p.apply("Read Audubon", Create.empty(new TypeDescriptor<AudubonRecord>() {}))
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
+    PCollection<KV<String, DerivedMetadataRecord>> derivedMetadataCollection =
+        p.apply("Read DerivedMetadataRecord", Create.of(dmr))
+            .apply("Map DerivedMetadataRecord to KV", derivedMetadataTransform.toKv());
+
     PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
-        p.apply(
-                "Read MeasurementOrFactTransform",
-                Create.empty(new TypeDescriptor<MeasurementOrFactRecord>() {}))
-            .apply("Map MeasurementOrFactTransform to KV", measurementOrFactTransform.toKv());
+        p.apply("Read MeasurementOrFactRecord", Create.of(mofr))
+            .apply("Map MeasurementOrFactRecord to KV", measurementOrFactTransform.toKv());
 
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
         ParentJsonTransform.builder()
@@ -280,9 +337,11 @@ public class ParentJsonTransformTest {
             .eventCoreRecordTag(eventCoreTransform.getTag())
             .temporalRecordTag(temporalTransform.getTag())
             .locationRecordTag(locationTransform.getTag())
+            .taxonRecordTag(taxonomyTransform.getTag())
             .multimediaRecordTag(multimediaTransform.getTag())
             .imageRecordTag(imageTransform.getTag())
             .audubonRecordTag(audubonTransform.getTag())
+            .derivedMetadataRecordTag(DerivedMetadataTransform.tag())
             .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .metadataView(metadataView)
             .build()
@@ -294,35 +353,39 @@ public class ParentJsonTransformTest {
             .of(eventCoreTransform.getTag(), eventCoreCollection)
             .and(temporalTransform.getTag(), temporalCollection)
             .and(locationTransform.getTag(), locationCollection)
+            .and(taxonomyTransform.getTag(), taxonCollection)
             // Extension
             .and(multimediaTransform.getTag(), multimediaCollection)
             .and(imageTransform.getTag(), imageCollection)
             .and(audubonTransform.getTag(), audubonCollection)
+            .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
             // Internal
             .and(identifierTransform.getTag(), identifierCollection)
             // Raw
             .and(verbatimTransform.getTag(), verbatimCollection)
-            // Raw
-            .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
+            // DerivedMetadata
+            .and(DerivedMetadataTransform.tag(), derivedMetadataCollection)
             // Apply
             .apply("Grouping objects", CoGroupByKey.create())
             .apply("Merging to json", eventJsonDoFn);
 
     // Should
-    List<String> jsons =
+    String json =
         ParentJsonConverter.builder()
             .metadata(mr)
             .eventCore(ecr)
             .identifier(ir)
             .temporal(tmr)
             .location(lr)
+            .taxon(tr)
             .multimedia(mmr)
             .verbatim(er)
-            //            .measurementOrFactRecord(m)
+            .derivedMetadata(dmr)
+            .measurementOrFact(mofr)
             .build()
-            .toJsons();
+            .toJson();
 
-    PAssert.that(jsonCollection).containsInAnyOrder(jsons);
+    PAssert.that(jsonCollection).containsInAnyOrder(json);
     p.run();
   }
 }

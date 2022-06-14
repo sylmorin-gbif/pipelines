@@ -1,8 +1,15 @@
 package org.gbif.pipelines.ingest.pipelines;
 
+import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.Interpretation.RecordType.IDENTIFIER;
+import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.Interpretation.RecordType.IDENTIFIER_ABSENT;
+import static org.gbif.pipelines.core.utils.ModelUtils.extractOptValue;
+
 import au.org.ala.kvs.ALAPipelinesConfig;
 import au.org.ala.kvs.cache.ALAAttributionKVStoreFactory;
+import au.org.ala.kvs.cache.ALANameCheckKVStoreFactory;
+import au.org.ala.kvs.cache.ALANameMatchKVStoreFactory;
 import au.org.ala.kvs.cache.GeocodeKvStoreFactory;
+import au.org.ala.pipelines.transforms.ALATaxonomyTransform;
 import au.org.ala.pipelines.transforms.ALATemporalTransform;
 import au.org.ala.pipelines.transforms.LocationTransform;
 import au.org.ala.pipelines.transforms.MetadataTransform;
@@ -10,7 +17,8 @@ import au.org.ala.utils.CombinedYamlConfiguration;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -20,20 +28,24 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.Filter;
+import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.values.PCollection;
-import org.gbif.common.parsers.date.DateComponentOrdering;
+import org.apache.beam.sdk.values.PCollectionView;
+import org.gbif.api.model.pipelines.StepType;
+import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
 import org.gbif.pipelines.common.beam.options.InterpretationPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
 import org.gbif.pipelines.common.beam.utils.PathBuilder;
+import org.gbif.pipelines.core.pojo.HdfsConfigs;
 import org.gbif.pipelines.core.utils.FsUtils;
 import org.gbif.pipelines.factory.FileVocabularyFactory;
+import org.gbif.pipelines.ingest.pipelines.interpretation.TransformsFactory;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.MetadataRecord;
-import org.gbif.pipelines.transforms.common.ExtensionFilterTransform;
-import org.gbif.pipelines.transforms.common.UniqueIdTransform;
-import org.gbif.pipelines.transforms.core.EventCoreTransform;
-import org.gbif.pipelines.transforms.core.VerbatimTransform;
+import org.gbif.pipelines.transforms.core.*;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
 import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
@@ -69,6 +81,8 @@ import org.slf4j.MDC;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ALAVerbatimToInterpretedPipeline {
 
+  private static final DwcTerm CORE_TERM = DwcTerm.Event;
+
   public static void main(String[] args) throws IOException {
     String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "interpret");
     InterpretationPipelineOptions options =
@@ -88,28 +102,30 @@ public class ALAVerbatimToInterpretedPipeline {
     Integer attempt = options.getAttempt();
     Set<String> types = options.getInterpretationTypes();
     String targetPath = options.getTargetPath();
-    String hdfsSiteConfig = options.getHdfsSiteConfig();
-    String coreSiteConfig = options.getCoreSiteConfig();
-
-    ALAPipelinesConfig config =
-        FsUtils.readConfigFile(
-            hdfsSiteConfig, coreSiteConfig, options.getProperties(), ALAPipelinesConfig.class);
-
-    List<DateComponentOrdering> dateComponentOrdering =
-        options.getDefaultDateFormat() == null
-            ? config.getGbifConfig().getDefaultDateFormat()
-            : options.getDefaultDateFormat();
-
-    FsUtils.deleteInterpretIfExist(
-        hdfsSiteConfig, coreSiteConfig, targetPath, datasetId, attempt, types);
 
     MDC.put("datasetKey", datasetId);
+    MDC.put("step", StepType.EVENTS_VERBATIM_TO_INTERPRETED.name());
     MDC.put("attempt", attempt.toString());
+
+    HdfsConfigs hdfsConfigs =
+        HdfsConfigs.create(options.getHdfsSiteConfig(), options.getCoreSiteConfig());
+
+    ALAPipelinesConfig config =
+        FsUtils.readConfigFile(hdfsConfigs, options.getProperties(), ALAPipelinesConfig.class);
+
+    TransformsFactory transformsFactory = TransformsFactory.create(options);
+
+    // Remove directories with avro files for expected interpretation, except IDENTIFIER
+    Set<String> deleteTypes = new HashSet<>(types);
+    deleteTypes.add(IDENTIFIER.name());
+    deleteTypes.remove(IDENTIFIER_ABSENT.name());
+    FsUtils.deleteInterpretIfExist(
+        hdfsConfigs, targetPath, datasetId, attempt, CORE_TERM, deleteTypes);
 
     String id = Long.toString(LocalDateTime.now().toEpochSecond(ZoneOffset.UTC));
 
     UnaryOperator<String> pathFn =
-        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, t, id);
+        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, CORE_TERM, t, id);
 
     log.info("Creating a pipeline from options");
     Pipeline p = pipelinesFn.apply(options);
@@ -121,20 +137,6 @@ public class ALAVerbatimToInterpretedPipeline {
             .dataResourceKvStoreSupplier(ALAAttributionKVStoreFactory.getInstanceSupplier(config))
             .datasetId(datasetId)
             .create();
-    EventCoreTransform eventCoreTransform =
-        EventCoreTransform.builder()
-            .vocabularyServiceSupplier(
-                FileVocabularyFactory.builder()
-                    .config(config.getGbifConfig())
-                    .hdfsSiteConfig(hdfsSiteConfig)
-                    .coreSiteConfig(coreSiteConfig)
-                    .build()
-                    .getInstanceSupplier())
-            .create();
-    IdentifierTransform identifierTransform =
-        IdentifierTransform.builder().datasetKey(datasetId).create();
-    VerbatimTransform verbatimTransform = VerbatimTransform.create();
-    // TODO START: ALA uses the same LocationRecord but another Transform
     LocationTransform locationTransform =
         LocationTransform.builder()
             .alaConfig(config)
@@ -142,89 +144,119 @@ public class ALAVerbatimToInterpretedPipeline {
             .stateProvinceKvStoreSupplier(GeocodeKvStoreFactory.createStateProvinceSupplier(config))
             .biomeKvStoreSupplier(GeocodeKvStoreFactory.createBiomeSupplier(config))
             .create();
+    EventCoreTransform eventCoreTransform =
+        EventCoreTransform.builder()
+            .vocabularyServiceSupplier(
+                FileVocabularyFactory.builder()
+                    .config(config.getGbifConfig())
+                    .hdfsConfigs(hdfsConfigs)
+                    .build()
+                    .getInstanceSupplier())
+            .create();
+    ;
+    IdentifierTransform identifierTransform = transformsFactory.createIdentifierTransform();
+    VerbatimTransform verbatimTransform = VerbatimTransform.create();
+    ALATaxonomyTransform alaTaxonomyTransform =
+        ALATaxonomyTransform.builder()
+            .datasetId(datasetId)
+            .nameMatchStoreSupplier(ALANameMatchKVStoreFactory.getInstanceSupplier(config))
+            .kingdomCheckStoreSupplier(
+                ALANameCheckKVStoreFactory.getInstanceSupplier("kingdom", config))
+            .dataResourceStoreSupplier(ALAAttributionKVStoreFactory.getInstanceSupplier(config))
+            .create();
 
-    // TODO END: ALA uses the same LocationRecord but another Transform
-    ALATemporalTransform temporalTransform =
-        ALATemporalTransform.builder().orderings(dateComponentOrdering).create();
-
+    MultimediaTransform multimediaTransform = transformsFactory.createMultimediaTransform();
+    AudubonTransform audubonTransform = transformsFactory.createAudubonTransform();
+    ImageTransform imageTransform = transformsFactory.createImageTransform();
+    ALATemporalTransform temporalTransform = ALATemporalTransform.builder().create();
     // Extension
-    MultimediaTransform multimediaTransform =
-        MultimediaTransform.builder().orderings(dateComponentOrdering).create();
-    AudubonTransform audubonTransform =
-        AudubonTransform.builder().orderings(dateComponentOrdering).create();
-    ImageTransform imageTransform =
-        ImageTransform.builder().orderings(dateComponentOrdering).create();
-
     MeasurementOrFactTransform measurementOrFactTransform =
         MeasurementOrFactTransform.builder().create();
 
     log.info("Creating beam pipeline");
-    // Metadata TODO START: Will ALA use it?
     PCollection<MetadataRecord> metadataRecord =
         p.apply("Create metadata collection", Create.of(options.getDatasetId()))
             .apply("Interpret metadata", metadataTransform.interpret());
 
     metadataRecord.apply("Write metadata to avro", metadataTransform.write(pathFn));
-    // TODO END: Will ALA use it?
 
     // Read raw records and filter duplicates
     PCollection<ExtendedRecord> uniqueRawRecords =
-        p.apply("Read verbatim", verbatimTransform.read(options.getInputPath()))
-            .apply("Filter duplicates", UniqueIdTransform.create())
+        p.apply("Read event  verbatim", verbatimTransform.read(options.getInputPath()))
+            .apply("Filter event duplicates", transformsFactory.createUniqueIdTransform())
+            .apply("Filter event extensions", transformsFactory.createExtensionFilterTransform());
+
+    // view with the records that have parents to find the hierarchy in the event core
+    // interpretation later
+    PCollectionView<Map<String, String>> erWithParentEventsView =
+        uniqueRawRecords
             .apply(
-                "Filter extension",
-                ExtensionFilterTransform.create(
-                    config.getGbifConfig().getExtensionsAllowedForVerbatimSet()));
+                Filter.by(
+                    (SerializableFunction<ExtendedRecord, Boolean>)
+                        input -> extractOptValue(input, DwcTerm.parentEventID).isPresent()))
+            .apply(verbatimTransform.toParentEventsKv())
+            .apply("View to find parents", View.asMap());
+    eventCoreTransform.setErWithParentsView(erWithParentEventsView);
 
-    // Interpret identifiers and wite as avro files
+    // Interpret identifiers and write as avro files
     uniqueRawRecords
-        .apply("Interpret identifiers", identifierTransform.interpret())
-        .apply("Write identifiers to avro", identifierTransform.write(pathFn));
+        .apply("Interpret event identifiers", identifierTransform.interpret())
+        .apply("Write event identifiers to avro", identifierTransform.write(pathFn));
 
-    // Interpret event core records and wite as avro files
+    // Interpret event core records and write as avro files
     uniqueRawRecords
         .apply("Interpret event core", eventCoreTransform.interpret())
-        .apply("Write event to avro", eventCoreTransform.write(pathFn));
+        .apply("Write event core to avro", eventCoreTransform.write(pathFn));
 
     uniqueRawRecords
-        .apply("Interpret temporal", temporalTransform.interpret())
-        .apply("Write temporal to avro", temporalTransform.write(pathFn));
-
-    // TODO START: DO WE NEED ALL MULTIMEDIA EXTENSIONS?
-    uniqueRawRecords
-        .apply("Interpret multimedia", multimediaTransform.interpret())
-        .apply("Write multimedia to avro", multimediaTransform.write(pathFn));
+        .apply("Interpret event temporal", temporalTransform.interpret())
+        .apply("Write event temporal to avro", temporalTransform.write(pathFn));
 
     uniqueRawRecords
-        .apply("Interpret audubon", audubonTransform.interpret())
-        .apply("Write audubon to avro", audubonTransform.write(pathFn));
+        .apply("Interpret event taxonomy", alaTaxonomyTransform.interpret())
+        .apply("Write event taxon to avro", alaTaxonomyTransform.write(pathFn));
 
     uniqueRawRecords
-        .apply("Interpret image", imageTransform.interpret())
-        .apply("Write image to avro", imageTransform.write(pathFn));
-    // TODO END
+        .apply("Interpret event multimedia", multimediaTransform.interpret())
+        .apply("Write event multimedia to avro", multimediaTransform.write(pathFn));
 
     uniqueRawRecords
-        .apply("Interpret location", locationTransform.interpret())
-        .apply("Write location to avro", locationTransform.write(pathFn));
+        .apply("Interpret event audubon", audubonTransform.interpret())
+        .apply("Write event audubon to avro", audubonTransform.write(pathFn));
+
+    uniqueRawRecords
+        .apply("Interpret event image", imageTransform.interpret())
+        .apply("Write event image to avro", imageTransform.write(pathFn));
+
+    uniqueRawRecords
+        .apply("Interpret event location", locationTransform.interpret())
+        .apply("Write event location to avro", locationTransform.write(pathFn));
 
     uniqueRawRecords
         .apply("Interpret measurementOrFact", measurementOrFactTransform.interpret())
         .apply("Write measurementOrFact to avro", measurementOrFactTransform.write(pathFn));
 
-    // Wite filtered verbatim avro files
-    uniqueRawRecords.apply("Write verbatim to avro", verbatimTransform.write(pathFn));
+    // Write filtered verbatim avro files
+    uniqueRawRecords.apply("Write event verbatim to avro", verbatimTransform.write(pathFn));
 
     log.info("Running the pipeline");
     PipelineResult result = p.run();
     result.waitUntilFinish();
 
     log.info("Save metrics into the file and set files owner");
+    String metadataPath =
+        PathBuilder.buildDatasetAttemptPath(options, options.getMetaFileName(), false);
     MetricsHandler.saveCountersToTargetPathFile(options, result.metrics());
+    FsUtils.setOwnerToCrap(hdfsConfigs, metadataPath);
 
     log.info("Deleting beam temporal folders");
     String tempPath = String.join("/", targetPath, datasetId, attempt.toString());
-    FsUtils.deleteDirectoryByPrefix(hdfsSiteConfig, coreSiteConfig, tempPath, ".temp-beam");
+    FsUtils.deleteDirectoryByPrefix(hdfsConfigs, tempPath, ".temp-beam");
+
+    log.info("Set interpreted files permissions");
+    String interpretedPath =
+        PathBuilder.buildDatasetAttemptPath(options, CORE_TERM.simpleName(), false);
+    FsUtils.setOwnerToCrap(hdfsConfigs, interpretedPath);
 
     log.info("Pipeline has been finished");
   }

@@ -80,15 +80,15 @@ object DenormalisationPipeline {
 
     System.out.println("Load events")
     val eventCoreDF = spark.read.format("avro").
-      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_core/*.avro").as("event")
+      load(s"${hdfsPath}/${datasetId}/${attempt}/event/event_core/*.avro").as("event")
 
     System.out.println("Load location")
     val locationDF = spark.read.format("avro").
-      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/location/*.avro").as("location")
+      load(s"${hdfsPath}/${datasetId}/${attempt}/event/location/*.avro").as("location")
 
     System.out.println("Load temporal")
     val temporalDF = spark.read.format("avro").
-      load(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/temporal/*.avro").as("temporal")
+      load(s"${hdfsPath}/${datasetId}/${attempt}/event/temporal/*.avro").as("temporal")
 
     System.out.println("Join")
     val joined_df = eventCoreDF.
@@ -144,7 +144,7 @@ object DenormalisationPipeline {
       .mode(SaveMode.Overwrite)
       .format("avro")
       .options(Map("avroSchema" -> schemaAvro.toString))
-      .save(s"${hdfsPath}/${datasetId}/${attempt}/interpreted/event_hierarchy/")
+      .save(s"${hdfsPath}/${datasetId}/${attempt}/event/event_hierarchy/")
   }
 
   def genericRecordToRow(row:Row, sqlType:StructType): Row = {

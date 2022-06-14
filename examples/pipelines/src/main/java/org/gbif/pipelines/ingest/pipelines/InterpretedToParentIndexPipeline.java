@@ -1,7 +1,8 @@
 package org.gbif.pipelines.ingest.pipelines;
 
-import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.AVRO_EXTENSION;
+import static org.gbif.pipelines.common.PipelinesVariables.Pipeline.ALL_AVRO;
 
+import au.org.ala.pipelines.transforms.ALATaxonomyTransform;
 import au.org.ala.utils.CombinedYamlConfiguration;
 import java.io.IOException;
 import java.util.Objects;
@@ -9,6 +10,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.beam.sdk.Pipeline;
@@ -16,24 +18,24 @@ import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.elasticsearch.ElasticsearchIO;
 import org.apache.beam.sdk.io.fs.EmptyMatchTreatment;
-import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.*;
 import org.apache.beam.sdk.transforms.ParDo.SingleOutput;
-import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.transforms.join.CoGroupByKey;
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple;
 import org.apache.beam.sdk.values.*;
+import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
 import org.gbif.pipelines.common.beam.options.EsIndexingPipelineOptions;
 import org.gbif.pipelines.common.beam.options.PipelinesOptionsFactory;
 import org.gbif.pipelines.common.beam.utils.PathBuilder;
 import org.gbif.pipelines.ingest.utils.ElasticsearchTools;
 import org.gbif.pipelines.io.avro.*;
+import org.gbif.pipelines.io.avro.json.DerivedMetadataRecord;
+import org.gbif.pipelines.transforms.common.NotNullOrEmptyFilter;
+import org.gbif.pipelines.transforms.converters.ParentEventExpandTransform;
 import org.gbif.pipelines.transforms.converters.ParentJsonTransform;
-import org.gbif.pipelines.transforms.core.EventCoreTransform;
-import org.gbif.pipelines.transforms.core.LocationTransform;
-import org.gbif.pipelines.transforms.core.TemporalTransform;
-import org.gbif.pipelines.transforms.core.VerbatimTransform;
+import org.gbif.pipelines.transforms.core.*;
 import org.gbif.pipelines.transforms.extension.AudubonTransform;
 import org.gbif.pipelines.transforms.extension.ImageTransform;
 import org.gbif.pipelines.transforms.extension.MeasurementOrFactTransform;
@@ -77,6 +79,8 @@ import org.slf4j.MDC;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class InterpretedToParentIndexPipeline {
 
+  private static final DwcTerm CORE_TERM = DwcTerm.Event;
+
   public static void main(String[] args) throws IOException {
     String[] combinedArgs = new CombinedYamlConfiguration(args).toArgs("general", "elastic");
     EsIndexingPipelineOptions options = PipelinesOptionsFactory.createIndexing(combinedArgs);
@@ -100,7 +104,11 @@ public class InterpretedToParentIndexPipeline {
 
     log.info("Adding step 1: Options");
     UnaryOperator<String> pathFn =
-        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, t, "*" + AVRO_EXTENSION);
+        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, CORE_TERM, t, ALL_AVRO);
+
+    UnaryOperator<String> occurrencesPathFn =
+        t ->
+            PathBuilder.buildPathInterpretUsingTargetPath(options, DwcTerm.Occurrence, t, ALL_AVRO);
 
     options.setAppName("Event indexing of " + options.getDatasetId());
     Pipeline p = pipelinesFn.apply(options);
@@ -109,10 +117,12 @@ public class InterpretedToParentIndexPipeline {
     MetadataTransform metadataTransform = MetadataTransform.builder().create();
     // Core
     EventCoreTransform eventCoreTransform = EventCoreTransform.builder().create();
+    ALATaxonomyTransform alaTaxonomyTransform = ALATaxonomyTransform.builder().create();
     IdentifierTransform identifierTransform = IdentifierTransform.builder().create();
     VerbatimTransform verbatimTransform = VerbatimTransform.create();
     TemporalTransform temporalTransform = TemporalTransform.builder().create();
     LocationTransform locationTransform = LocationTransform.builder().create();
+    LocationTransform parentLocationTransform = LocationTransform.builder().create();
     MeasurementOrFactTransform measurementOrFactTransform =
         MeasurementOrFactTransform.builder().create();
 
@@ -146,6 +156,10 @@ public class InterpretedToParentIndexPipeline {
         p.apply("Read Location", locationTransform.read(pathFn))
             .apply("Map Location to KV", locationTransform.toKv());
 
+    PCollection<KV<String, ALATaxonRecord>> taxonCollection =
+        p.apply("Read event taxon records", alaTaxonomyTransform.read(pathFn))
+            .apply("Map event taxon records to KV", alaTaxonomyTransform.toKv());
+
     PCollection<KV<String, MultimediaRecord>> multimediaCollection =
         p.apply("Read Multimedia", multimediaTransform.read(pathFn))
             .apply("Map Multimedia to KV", multimediaTransform.toKv());
@@ -159,13 +173,31 @@ public class InterpretedToParentIndexPipeline {
             .apply("Map Audubon to KV", audubonTransform.toKv());
 
     PCollection<KV<String, MeasurementOrFactRecord>> measurementOrFactCollection =
-        p.apply("Read Audubon", measurementOrFactTransform.read(pathFn))
-            .apply("Map Audubon to KV", measurementOrFactTransform.toKv());
+        p.apply("Read Measurement or fact", measurementOrFactTransform.read(pathFn))
+            .apply("Map Measurement or fact to KV", measurementOrFactTransform.toKv());
 
     PCollection<KV<String, DenormalisedEvent>> denormCollection =
         getEventDenormalisation(options, p);
 
     TupleTag<DenormalisedEvent> denormalisedEventTag = new TupleTag<>();
+
+    PCollection<KV<String, DerivedMetadataRecord>> derivedMetadataRecordCollection =
+        DerivedMetadata.builder()
+            .pipeline(p)
+            .verbatimTransform(verbatimTransform)
+            .temporalTransform(temporalTransform)
+            .parentLocationTransform(parentLocationTransform)
+            .taxonomyTransform(alaTaxonomyTransform)
+            .locationTransform(locationTransform)
+            .eventCoreTransform(eventCoreTransform)
+            .verbatimCollection(verbatimCollection)
+            .temporalCollection(temporalCollection)
+            .locationCollection(locationCollection)
+            .taxonCollection(taxonCollection)
+            .eventCoreCollection(eventCoreCollection)
+            .occurrencesPathFn(occurrencesPathFn)
+            .build()
+            .calculate();
 
     log.info("Adding step 3: Converting into a json object");
     SingleOutput<KV<String, CoGbkResult>, String> eventJsonDoFn =
@@ -180,6 +212,7 @@ public class InterpretedToParentIndexPipeline {
             .audubonRecordTag(audubonTransform.getTag())
             .measurementOrFactRecordTag(measurementOrFactTransform.getTag())
             .denormalisedEventTag(denormalisedEventTag)
+            .derivedMetadataRecordTag(DerivedMetadataTransform.tag())
             .metadataView(metadataView)
             .build()
             .converter();
@@ -201,7 +234,8 @@ public class InterpretedToParentIndexPipeline {
             .and(measurementOrFactTransform.getTag(), measurementOrFactCollection)
             // denorm
             .and(denormalisedEventTag, denormCollection)
-
+            // Derived metadata
+            .and(DerivedMetadataTransform.tag(), derivedMetadataRecordCollection)
             // Apply
             .apply("Grouping objects", CoGroupByKey.create())
             .apply("Merging to json", eventJsonDoFn);
@@ -259,12 +293,131 @@ public class InterpretedToParentIndexPipeline {
                             options.getTargetPath(),
                             options.getDatasetId().trim(),
                             options.getAttempt().toString(),
-                            "interpreted",
+                            "event",
                             "event_hierarchy",
                             "*.avro")))
             .apply(
                 MapElements.into(new TypeDescriptor<KV<String, DenormalisedEvent>>() {})
                     .via((DenormalisedEvent tr) -> KV.of(tr.getId(), tr)));
     return denorm;
+  }
+
+  @Builder
+  static class DerivedMetadata {
+    private final Pipeline pipeline;
+    private final VerbatimTransform verbatimTransform;
+    private final TemporalTransform temporalTransform;
+    private final LocationTransform parentLocationTransform;
+    private final ALATaxonomyTransform taxonomyTransform;
+    private final EventCoreTransform eventCoreTransform;
+    private final LocationTransform locationTransform;
+    private final PCollection<KV<String, ExtendedRecord>> verbatimCollection;
+    private final PCollection<KV<String, TemporalRecord>> temporalCollection;
+    private final PCollection<KV<String, LocationRecord>> locationCollection;
+    private final PCollection<KV<String, ALATaxonRecord>> taxonCollection;
+    private final PCollection<KV<String, EventCoreRecord>> eventCoreCollection;
+    private final UnaryOperator<String> occurrencesPathFn;
+
+    /** Calculates the simple Temporal Coverage of an Event. */
+    private PCollection<KV<String, EventDate>> temporalCoverage() {
+      PCollection<KV<String, TemporalRecord>> eventOccurrenceTemporalCollection =
+          pipeline
+              .apply(
+                  "Read occurrence event temporal records",
+                  temporalTransform.read(occurrencesPathFn))
+              .apply(
+                  "Remove temporal records with null parent ids",
+                  Filter.by(NotNullOrEmptyFilter.of(TemporalRecord::getParentId)))
+              .apply(
+                  "Map occurrence events temporal records to KV", temporalTransform.toParentKv());
+
+      // Creates a Map of all events and its sub events
+      PCollection<KV<String, TemporalRecord>> temporalRecordsOfSubEvents =
+          ParentEventExpandTransform.of(temporalTransform.getTag(), eventCoreTransform.getTag())
+              .toSubEventsRecords("Temporal", temporalCollection, eventCoreCollection);
+
+      return PCollectionList.of(temporalCollection)
+          .and(eventOccurrenceTemporalCollection)
+          .and(temporalRecordsOfSubEvents)
+          .apply("Joining temporal records", Flatten.pCollections())
+          .apply("Calculate the temporal coverage", Combine.perKey(new TemporalCoverageFn()));
+    }
+
+    private PCollection<KV<String, String>> convexHull() {
+      PCollection<KV<String, LocationRecord>> eventOccurrenceLocationCollection =
+          pipeline
+              .apply(
+                  "Read occurrence events locations",
+                  parentLocationTransform.read(occurrencesPathFn))
+              .apply(
+                  "Remove location records with null parent ids",
+                  Filter.by(NotNullOrEmptyFilter.of(LocationRecord::getParentId)))
+              .apply("Map occurrence events locations to KV", parentLocationTransform.toParentKv());
+
+      PCollection<KV<String, LocationRecord>> locationRecordsOfSubEvents =
+          ParentEventExpandTransform.of(locationTransform.getTag(), eventCoreTransform.getTag())
+              .toSubEventsRecords("Location", locationCollection, eventCoreCollection);
+
+      return PCollectionList.of(locationCollection)
+          .and(eventOccurrenceLocationCollection)
+          .and(locationRecordsOfSubEvents)
+          .apply("Joining location records", Flatten.pCollections())
+          .apply(
+              "Calculate the WKT Convex Hull of all records", Combine.perKey(new ConvexHullFn()));
+    }
+
+    private PCollection<KV<String, Iterable<ALATaxonRecord>>> taxonomicCoverage() {
+      PCollection<KV<String, ALATaxonRecord>> eventOccurrencesTaxonCollection =
+          pipeline
+              .apply(
+                  "Read event occurrences taxon records", taxonomyTransform.read(occurrencesPathFn))
+              //                      .apply(
+              //                              "Remove taxon records with null parent ids",
+              //
+              // Filter.by(NotNullOrEmptyFilter.of(ALATaxonRecord::get)))
+              .apply("Map event occurrences taxon to KV", taxonomyTransform.toParentKv());
+
+      PCollection<KV<String, ALATaxonRecord>> taxonRecordsOfSubEvents =
+          ParentEventExpandTransform.of(taxonomyTransform.getTag(), eventCoreTransform.getTag())
+              .toSubEventsRecords("Taxon", taxonCollection, eventCoreCollection);
+
+      return PCollectionList.of(taxonCollection)
+          .and(eventOccurrencesTaxonCollection)
+          .and(taxonRecordsOfSubEvents)
+          .apply("Join event and occurrence taxon records", Flatten.pCollections())
+          .apply("Select a sample of taxon records", Sample.fixedSizePerKey(1000));
+    }
+
+    private static final TupleTag<Iterable<ALATaxonRecord>> ITERABLE_ALA_TAXON_TAG =
+        new TupleTag<Iterable<ALATaxonRecord>>() {};
+
+    PCollection<KV<String, DerivedMetadataRecord>> calculate() {
+
+      PCollection<KV<String, ExtendedRecord>> eventOccurrenceVerbatimCollection =
+          pipeline
+              .apply("Read event occurrences verbatim", verbatimTransform.read(occurrencesPathFn))
+              .apply(
+                  "Remove verbatim records with null parent ids",
+                  Filter.by(NotNullOrEmptyFilter.of((ExtendedRecord er) -> er.getParentCoreId())))
+              .apply("Map event occurrences verbatim to KV", verbatimTransform.toParentKv());
+
+      return KeyedPCollectionTuple.of(ConvexHullFn.tag(), convexHull())
+          .and(TemporalCoverageFn.tag(), temporalCoverage())
+          .and(ITERABLE_ALA_TAXON_TAG, taxonomicCoverage())
+          .and(
+              verbatimTransform.getTag(),
+              PCollectionList.of(eventOccurrenceVerbatimCollection)
+                  .and(verbatimCollection)
+                  .apply("Join event and occurrence verbatim records", Flatten.pCollections()))
+          .apply("Grouping derived metadata data", CoGroupByKey.create())
+          .apply(
+              "Creating derived metadata records",
+              DerivedMetadataTransform.builder()
+                  .convexHullTag(ConvexHullFn.tag())
+                  .temporalCoverageTag(TemporalCoverageFn.tag())
+                  .extendedRecordTag(verbatimTransform.getTag())
+                  .build()
+                  .converter());
+    }
   }
 }

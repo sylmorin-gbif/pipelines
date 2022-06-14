@@ -47,6 +47,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.gbif.api.model.pipelines.StepType;
 import org.gbif.common.parsers.date.DateComponentOrdering;
+import org.gbif.dwc.terms.DwcTerm;
 import org.gbif.pipelines.common.PipelinesException;
 import org.gbif.pipelines.common.beam.metrics.IngestMetrics;
 import org.gbif.pipelines.common.beam.metrics.MetricsHandler;
@@ -58,6 +59,7 @@ import org.gbif.pipelines.core.functions.SerializableConsumer;
 import org.gbif.pipelines.core.io.AvroReader;
 import org.gbif.pipelines.core.io.SyncDataFileWriter;
 import org.gbif.pipelines.core.io.SyncDataFileWriterBuilder;
+import org.gbif.pipelines.core.pojo.HdfsConfigs;
 import org.gbif.pipelines.core.utils.FsUtils;
 import org.gbif.pipelines.factory.FileVocabularyFactory;
 import org.gbif.pipelines.factory.OccurrenceStatusKvStoreFactory;
@@ -117,6 +119,7 @@ import org.slf4j.MDC;
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ALAVerbatimToInterpretedPipeline {
+  private static final DwcTerm CORE_TERM = DwcTerm.Occurrence;
 
   public static void main(String[] args) throws IOException {
     VersionInfo.print();
@@ -160,12 +163,11 @@ public class ALAVerbatimToInterpretedPipeline {
     Integer attempt = options.getAttempt();
     Set<String> types = Collections.singleton(ALL.name());
     String targetPath = options.getTargetPath();
-    String endPointType = options.getEndPointType();
+    HdfsConfigs hdfsConfigs =
+        HdfsConfigs.create(options.getHdfsSiteConfig(), options.getCoreSiteConfig());
 
     ALAPipelinesConfig config =
-        ALAPipelinesConfigFactory.getInstance(
-                options.getHdfsSiteConfig(), options.getCoreSiteConfig(), options.getProperties())
-            .get();
+        ALAPipelinesConfigFactory.getInstance(hdfsConfigs, options.getProperties()).get();
 
     // check collectory metadata available
     ALACollectoryMetadata m =
@@ -182,13 +184,7 @@ public class ALAVerbatimToInterpretedPipeline {
             ? config.getGbifConfig().getDefaultDateFormat()
             : options.getDefaultDateFormat();
 
-    FsUtils.deleteInterpretIfExist(
-        options.getHdfsSiteConfig(),
-        options.getCoreSiteConfig(),
-        targetPath,
-        datasetId,
-        attempt,
-        types);
+    FsUtils.deleteInterpretIfExist(hdfsConfigs, targetPath, datasetId, attempt, CORE_TERM, types);
 
     MDC.put("datasetId", datasetId);
     MDC.put("attempt", attempt.toString());
@@ -209,8 +205,7 @@ public class ALAVerbatimToInterpretedPipeline {
                 config.getGbifConfig().getVocabularyConfig() != null
                     ? FileVocabularyFactory.builder()
                         .config(config.getGbifConfig())
-                        .hdfsSiteConfig(options.getHdfsSiteConfig())
-                        .coreSiteConfig(options.getCoreSiteConfig())
+                        .hdfsConfigs(hdfsConfigs)
                         .build()
                         .getInstanceSupplier()
                     : null)
@@ -316,11 +311,7 @@ public class ALAVerbatimToInterpretedPipeline {
       // Read DWCA and replace default values
       log.info("Reading Verbatim into erMap");
       Map<String, ExtendedRecord> erMap =
-          AvroReader.readUniqueRecords(
-              options.getHdfsSiteConfig(),
-              options.getCoreSiteConfig(),
-              ExtendedRecord.class,
-              options.getInputPath());
+          AvroReader.readUniqueRecords(hdfsConfigs, ExtendedRecord.class, options.getInputPath());
 
       log.info("Reading DwcA - extension transform");
       Map<String, ExtendedRecord> erExtMap = occExtensionTransform.transform(erMap);
@@ -380,10 +371,13 @@ public class ALAVerbatimToInterpretedPipeline {
   private static <T> SyncDataFileWriter<T> createWriter(
       InterpretationPipelineOptions options, Schema schema, Transform transform, String id) {
     UnaryOperator<String> pathFn =
-        t -> PathBuilder.buildPathInterpretUsingTargetPath(options, t, id + AVRO_EXTENSION);
+        t ->
+            PathBuilder.buildPathInterpretUsingTargetPath(
+                options, CORE_TERM, t, id + AVRO_EXTENSION);
     Path path = new Path(pathFn.apply(transform.getBaseName()));
     FileSystem fs =
-        FileSystemFactory.getInstance(options.getHdfsSiteConfig()).getFs(path.toString());
+        FileSystemFactory.getInstance(HdfsConfigs.create(options.getHdfsSiteConfig(), null))
+            .getFs(path.toString());
     fs.mkdirs(path.getParent());
 
     return SyncDataFileWriterBuilder.builder()

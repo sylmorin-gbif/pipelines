@@ -36,12 +36,6 @@
       {"name":"occurrence","type":["null","OccurrenceJsonRecord"],"default":null,"doc":""},
       // Raw
       {"name":"verbatim","type":["null","VerbatimRecord"],"default":null,"doc":""},
-      // Geospatial fields floated to top
-      {"name":"coordinates","type":["null","Coordinates"],"default":null,"doc":""},
-      {"name":"scoordinates","type":["null","string"],"default":null,"doc":""},
-      {"name":"decimalLatitude","type":["null","double"],"default":null,"doc":""},
-      {"name":"decimalLongitude","type":["null","double"],"default":null,"doc":""},
-      {"name":"hasCoordinate","type":["null","boolean"],"default":null,"doc":""},
       // ES document join field type
       {"name":"joinRecord","type":["null","JoinRecord"],"default":null,"doc":""}
     ]

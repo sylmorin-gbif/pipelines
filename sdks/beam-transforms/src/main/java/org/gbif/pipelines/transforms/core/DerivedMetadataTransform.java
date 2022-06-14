@@ -3,9 +3,6 @@ package org.gbif.pipelines.transforms.core;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import lombok.Builder;
 import lombok.NonNull;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -15,7 +12,7 @@ import org.apache.beam.sdk.transforms.join.CoGbkResult;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TypeDescriptor;
-import org.gbif.pipelines.core.converters.JsonConverter;
+import org.gbif.pipelines.io.avro.ALATaxonRecord;
 import org.gbif.pipelines.io.avro.EventDate;
 import org.gbif.pipelines.io.avro.ExtendedRecord;
 import org.gbif.pipelines.io.avro.TaxonRecord;
@@ -29,6 +26,9 @@ public class DerivedMetadataTransform implements Serializable {
 
   private static final TupleTag<Iterable<TaxonRecord>> ITERABLE_TAXON_TAG =
       new TupleTag<Iterable<TaxonRecord>>() {};
+
+  private static final TupleTag<Iterable<ALATaxonRecord>> ITERABLE_ALA_TAXON_TAG =
+      new TupleTag<Iterable<ALATaxonRecord>>() {};
 
   @NonNull private final TupleTag<ExtendedRecord> extendedRecordTag;
 
@@ -54,20 +54,30 @@ public class DerivedMetadataTransform implements Serializable {
           public void processElement(ProcessContext c) {
             CoGbkResult result = c.element().getValue();
             String key = c.element().getKey();
-            String convexHull = result.getOnly(convexHullTag);
+            String convexHull = result.getOnly(convexHullTag, null);
 
             EventDate temporalCoverage =
                 result.getOnly(temporalCoverageTag, EventDate.newBuilder().build());
 
-            List<TaxonRecord> classifications =
-                StreamSupport.stream(
-                        result.getOnly(ITERABLE_TAXON_TAG, Collections.emptyList()).spliterator(),
-                        false)
-                    .collect(Collectors.toList());
+            //            List<TaxonRecord> classifications =
+            //                StreamSupport.stream(
+            //                        result.getOnly(ITERABLE_ALA_TAXON_TAG,
+            // Collections.emptyList()).spliterator(),
+            //                        false)
+            //                    .collect(Collectors.toList());
 
-            List<ExtendedRecord> verbatimRecords =
-                StreamSupport.stream(result.getAll(extendedRecordTag).spliterator(), false)
-                    .collect(Collectors.toList());
+            //            List<ALATaxonRecord> classifications =
+            //                StreamSupport.stream(
+            //                        result
+            //                            .getOnly(ITERABLE_ALA_TAXON_TAG, Collections.emptyList())
+            //                            .spliterator(),
+            //                        false)
+            //                    .collect(Collectors.toList());
+            //
+            //            List<ExtendedRecord> verbatimRecords =
+            //                StreamSupport.stream(result.getAll(extendedRecordTag).spliterator(),
+            // false)
+            //                    .collect(Collectors.toList());
 
             DerivedMetadataRecord.Builder builder = DerivedMetadataRecord.newBuilder().setId(key);
             if (convexHull != null && !convexHull.isEmpty()) {
@@ -81,15 +91,18 @@ public class DerivedMetadataTransform implements Serializable {
                       .setLte(temporalCoverage.getLte()));
             }
 
-            builder.setTaxonomicCoverage(
-                classifications.stream()
-                    .map(
-                        tr ->
-                            Optional.ofNullable(getAssociatedVerbatim(tr, verbatimRecords))
-                                .map(vr -> JsonConverter.convertClassification(vr, tr)))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toList()));
+            builder.setTaxonomicCoverage(Collections.emptyList());
+            //            builder.setTaxonomicCoverage(
+            //                classifications.stream()
+            //                    .map(
+            //                        tr ->
+            //                            Optional.ofNullable(getAssociatedVerbatim(tr,
+            // verbatimRecords))
+            //                                .map(vr -> JsonConverter.convertClassification(vr,
+            // tr)))
+            //                    .filter(Optional::isPresent)
+            //                    .map(Optional::get)
+            //                    .collect(Collectors.toList()));
             c.output(KV.of(key, builder.build()));
           }
         };
